@@ -76,6 +76,31 @@ what's present.
   } }
 ```
 
+## Publish to the internet (GitHub Pages)
+
+The dashboard is fully static, so it hosts on GitHub Pages for free. The repo is
+already initialised and committed locally (heavy folders are git-ignored).
+
+**One-time setup:**
+1. Create a new **public** repo at https://github.com/new (e.g. `fx-dashboard`).
+   Leave it empty — no README/.gitignore.
+2. Connect and push (from this folder):
+   ```sh
+   git remote add origin https://github.com/<your-username>/fx-dashboard.git
+   git push -u origin main
+   ```
+   (First push asks for GitHub auth — use a Personal Access Token as the password,
+   or the macOS credential helper / GitHub Desktop.)
+3. In the repo: **Settings → Pages → Build and deployment → Source: Deploy from a
+   branch → Branch: `main` / `/ (root)` → Save.**
+4. Wait ~1 minute. Your dashboard is live at
+   `https://<your-username>.github.io/fx-dashboard/`
+
+**Keeping it fresh:** after the daily `collect.js` run, `publish.sh` commits the
+new data and pushes — GitHub Pages rebuilds automatically. `run.sh` already calls
+`publish.sh`, so once the remote is set the live site updates every morning. (The
+Mac still needs to be on for the 09:00 capture, but the *site* stays up always.)
+
 ## Daily use
 
 **Capture today's rate manually:**
