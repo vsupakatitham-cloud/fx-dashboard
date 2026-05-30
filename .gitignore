@@ -4,3 +4,6 @@ node_modules/
 .npm-cache/
 logs/
 .DS_Store
+
+# Local input artifacts
+Screenshot*.png
