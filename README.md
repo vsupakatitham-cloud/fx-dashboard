@@ -105,7 +105,7 @@ Mac still needs to be on for the 09:00 capture, but the *site* stays up always.)
 
 **Capture today's rate manually:**
 ```sh
-cd "/Users/jack/Downloads/Claude-FX Dashboard"
+cd ~/fx-dashboard
 PLAYWRIGHT_BROWSERS_PATH=./.pw-browsers node collect.js
 ```
 Re-running on the same day overwrites that day's entry (idempotent).
