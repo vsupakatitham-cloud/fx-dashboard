@@ -11,12 +11,12 @@
     <string>/Users/jack/fx-dashboard/run.sh</string>
   </array>
 
-  <!-- Run every day at 09:05 local time. (Your Mac's clock is Bangkok time,
+  <!-- Run every day at 09:00 local time. (Your Mac's clock is Bangkok time,
        so this captures the ~09:00 BKT rate. Adjust Hour/Minute if needed.) -->
   <key>StartCalendarInterval</key>
   <dict>
     <key>Hour</key><integer>9</integer>
-    <key>Minute</key><integer>5</integer>
+    <key>Minute</key><integer>0</integer>
   </dict>
 
   <!-- If the Mac was asleep/off at 09:05, run as soon as it wakes. -->
