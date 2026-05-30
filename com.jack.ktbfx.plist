@@ -8,7 +8,7 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/zsh</string>
-    <string>/Users/jack/Downloads/Claude-FX Dashboard/run.sh</string>
+    <string>/Users/jack/fx-dashboard/run.sh</string>
   </array>
 
   <!-- Run every day at 09:05 local time. (Your Mac's clock is Bangkok time,
@@ -23,8 +23,8 @@
   <key>RunAtLoad</key><false/>
 
   <key>StandardOutPath</key>
-  <string>/Users/jack/Downloads/Claude-FX Dashboard/logs/launchd.out.log</string>
+  <string>/Users/jack/fx-dashboard/logs/launchd.out.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/jack/Downloads/Claude-FX Dashboard/logs/launchd.err.log</string>
+  <string>/Users/jack/fx-dashboard/logs/launchd.err.log</string>
 </dict>
 </plist>
