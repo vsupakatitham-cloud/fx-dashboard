@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.jack.ktbfx</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/jack/Downloads/Claude-FX Dashboard/run.sh</string>
+  </array>
+
+  <!-- Run every day at 09:05 local time. (Your Mac's clock is Bangkok time,
+       so this captures the ~09:00 BKT rate. Adjust Hour/Minute if needed.) -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>9</integer>
+    <key>Minute</key><integer>5</integer>
+  </dict>
+
+  <!-- If the Mac was asleep/off at 09:05, run as soon as it wakes. -->
+  <key>RunAtLoad</key><false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/jack/Downloads/Claude-FX Dashboard/logs/launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/jack/Downloads/Claude-FX Dashboard/logs/launchd.err.log</string>
+</dict>
+</plist>

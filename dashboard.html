@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FX Rate Monitor — Krungthai Travel Card vs. peers (09:00 BKT)</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root { --navy:#1b2a4a; --ink:#394866; --muted:#6b7280; --line:#e5e7eb; --bg:#f4f6f9; --good:#16a34a; --bad:#dc2626; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:linear-gradient(135deg,var(--navy),#2b4a7a); color:#fff; padding:22px 28px; }
+  header h1 { margin:0; font-size:20px; font-weight:650; }
+  header p { margin:6px 0 0; font-size:13px; opacity:.85; }
+  .wrap { max-width:1180px; margin:0 auto; padding:22px 28px 70px; }
+  .banner { background:#fff8e1; border:1px solid #f0d98a; color:#7a5b00; padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:16px; }
+  .controls { display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-bottom:18px; }
+  .controls label { font-size:13px; color:var(--muted); margin-right:6px; }
+  select { padding:7px 10px; border:1px solid var(--line); border-radius:7px; font-size:14px; background:#fff; color:var(--ink); }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+  .seg button { border:none; background:#fff; padding:7px 14px; font-size:13px; cursor:pointer; color:var(--ink); }
+  .seg button.active { background:#00a4e4; color:#fff; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin-bottom:20px; box-shadow:0 1px 2px rgba(16,24,40,.04); }
+  .card h2 { font-size:15px; margin:0 0 12px; font-weight:600; }
+  .chart-box { position:relative; height:380px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th,td { text-align:right; padding:9px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th:first-child, td:first-child { text-align:left; }
+  th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
+  .src { display:inline-flex; align-items:center; gap:7px; }
+  .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .best { background:#e7f7ee; color:var(--good); font-weight:600; border-radius:5px; }
+  .flag { font-size:16px; margin-right:7px; }
+  .foot { font-size:12px; color:var(--muted); margin-top:8px; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-top:10px; }
+  .miss { color:#b0b6bf; }
+  .scroll { overflow-x:auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>FX Rate Monitor — Krungthai Travel Card vs. peers</h1>
+  <p>Daily 09:00 BKT snapshot · Krungthai · Krungsri Boarding · Superrich Thailand · Mastercard · trailing 30 days</p>
+</header>
+<div class="wrap">
+  <div id="banner" class="banner"></div>
+
+  <div class="controls">
+    <div><label>Currency</label><select id="ccy"></select></div>
+    <div><label>Rate</label>
+      <span class="seg" id="rateSeg">
+        <button data-r="sell" class="active">Selling (spend abroad)</button>
+        <button data-r="buy">Buying (convert back)</button>
+      </span>
+    </div>
+    <div><label>Window</label>
+      <span class="seg" id="winSeg">
+        <button data-w="30" class="active">30d</button>
+        <button data-w="14">14d</button>
+        <button data-w="7">7d</button>
+      </span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 id="chartTitle">—</h2>
+    <div class="chart-box"><canvas id="chart"></canvas></div>
+    <div class="legend" id="legend"></div>
+    <div class="foot" id="chartFoot"></div>
+  </div>
+
+  <div class="card">
+    <h2 id="cmpTitle">Latest snapshot — source comparison</h2>
+    <div class="scroll"><div id="cmpWrap"></div></div>
+  </div>
+
+  <div class="card">
+    <h2 id="matrixTitle">All currencies — latest <span id="matrixRate">selling</span> rate by source</h2>
+    <div class="scroll"><div id="matrixWrap"></div></div>
+    <div class="foot">Green = best rate for you. For <b>selling</b> (spending abroad) lower THB is better; for <b>buying</b> (converting back) higher THB is better. Click a currency to chart it.</div>
+  </div>
+</div>
+
+<script src="data/snapshots.js"></script>
+<script>
+const FLAGS = {USD:'🇺🇸',EUR:'🇪🇺',JPY:'🇯🇵',GBP:'🇬🇧',CNY:'🇨🇳',AED:'🇦🇪',AUD:'🇦🇺',CAD:'🇨🇦',CHF:'🇨🇭',DKK:'🇩🇰',HKD:'🇭🇰',INR:'🇮🇳',KRW:'🇰🇷',NOK:'🇳🇴',NZD:'🇳🇿',QAR:'🇶🇦',SAR:'🇸🇦',SEK:'🇸🇪',SGD:'🇸🇬',TWD:'🇹🇼'};
+const SRC_META = {
+  krungthai: { label: 'Krungthai (card)', color: '#00a4e4' },
+  krungsri:  { label: 'Krungsri Boarding', color: '#f59e0b' },
+  superrich: { label: 'Superrich TH',      color: '#16a34a' },
+  mastercard:{ label: 'Mastercard (wholesale)', color: '#dc2626', reference: true },
+};
+const SRC_ORDER = ['krungthai','krungsri','superrich','mastercard'];
+
+const snaps = (window.FX_SNAPSHOTS || []).slice().sort((a,b)=>a.date.localeCompare(b.date));
+let state = { ccy:'USD', rate:'sell', win:30 };
+let chart;
+
+function activeSources() {
+  const s = new Set();
+  snaps.forEach(sn => Object.keys(sn.sources||{}).forEach(k => s.add(k)));
+  return SRC_ORDER.filter(k => s.has(k));
+}
+function allCurrencies() {
+  const s = new Set();
+  snaps.forEach(sn => Object.values(sn.sources||{}).forEach(blk => Object.keys(blk.rates||{}).forEach(c => s.add(c))));
+  return Array.from(s).sort();
+}
+function windowed(){ return state.win >= snaps.length ? snaps : snaps.slice(snaps.length - state.win); }
+function val(snap, src, ccy, rate) {
+  const r = snap.sources?.[src]?.rates?.[ccy];
+  return r ? r[rate] : null;
+}
+function fmt(v){ return v==null ? '—' : (Math.abs(v) >= 10 ? v.toFixed(2) : v.toFixed(4)); }
+
+function renderBanner() {
+  const b = document.getElementById('banner');
+  if (!snaps.length) { b.textContent = 'No snapshots yet — run: node collect.js'; return; }
+  const n = snaps.length, srcs = activeSources().map(s=>SRC_META[s].label).join(' · ');
+  const hasMC = activeSources().includes('mastercard');
+  b.innerHTML = `<b>${n} of 30</b> day${n>1?'s':''} collected (${snaps[0].date} → ${snaps[n-1].date}). Sources: ${srcs}.` +
+    (hasMC ? '' : ` <span class="miss">Mastercard not collected (Akamai blocks automation — see README).</span>`);
+}
+
+function buildControls() {
+  const sel = document.getElementById('ccy');
+  sel.innerHTML = allCurrencies().map(c => `<option value="${c}">${FLAGS[c]||''} ${c}</option>`).join('');
+  sel.value = state.ccy;
+  sel.onchange = e => { state.ccy = e.target.value; renderAll(); };
+  document.querySelectorAll('#rateSeg button').forEach(btn => btn.onclick = () => { state.rate=btn.dataset.r; setActive('#rateSeg',btn); renderAll(); });
+  document.querySelectorAll('#winSeg button').forEach(btn => btn.onclick = () => { state.win=+btn.dataset.w; setActive('#winSeg',btn); renderAll(); });
+}
+function setActive(sel, btn){ document.querySelectorAll(sel+' button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
+
+function renderChart() {
+  const data = windowed();
+  const labels = data.map(s => s.date.slice(5));
+  const srcs = activeSources();
+  document.getElementById('chartTitle').textContent =
+    `${FLAGS[state.ccy]||''} ${state.ccy}/THB — ${state.rate==='sell'?'Selling':'Buying'} rate by source`;
+  const datasets = srcs.map(src => ({
+    label: SRC_META[src].label,
+    data: data.map(s => val(s, src, state.ccy, state.rate)),
+    borderColor: SRC_META[src].color, backgroundColor: SRC_META[src].color,
+    borderWidth: 2, pointRadius: data.length > 25 ? 1.5 : 3, tension: .25, spanGaps: true,
+    borderDash: SRC_META[src].reference ? [6, 4] : [],
+  })).filter(ds => ds.data.some(v => v != null));
+
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('chart'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y}` } } },
+      scales: { y: { grid: { color:'#eef1f5' } }, x: { grid: { display:false } } },
+    },
+  });
+  document.getElementById('legend').innerHTML = datasets.map(ds =>
+    `<span class="src"><span class="dot" style="background:${ds.borderColor}"></span>${ds.label}</span>`).join('');
+  // spread note vs first day for Krungthai
+  const ktVals = data.map(s => val(s,'krungthai',state.ccy,state.rate)).filter(v=>v!=null);
+  document.getElementById('chartFoot').textContent = data.length < 2
+    ? 'One data point so far — lines extend as daily snapshots accumulate.'
+    : `Krungthai range in window: ${fmt(Math.min(...ktVals))} – ${fmt(Math.max(...ktVals))}.`;
+}
+
+function renderComparison() {
+  const data = windowed(); if (!data.length) return;
+  const latest = data[data.length-1];
+  const srcs = activeSources();
+  const realSrcs = srcs.filter(s=>!SRC_META[s].reference); // exclude wholesale ref from "best"
+  document.getElementById('cmpTitle').textContent = `Latest snapshot — ${FLAGS[state.ccy]||''} ${state.ccy}/THB across sources`;
+  // best sell = min, best buy = max (among transactable sources only)
+  const sells = realSrcs.map(s=>val(latest,s,state.ccy,'sell')).filter(v=>v!=null);
+  const buys = realSrcs.map(s=>val(latest,s,state.ccy,'buy')).filter(v=>v!=null);
+  const bestSell = sells.length?Math.min(...sells):null, bestBuy = buys.length?Math.max(...buys):null;
+  const rows = srcs.map(src => {
+    const b = val(latest,src,state.ccy,'buy'), s = val(latest,src,state.ccy,'sell');
+    const isRef = SRC_META[src].reference;
+    const spread = (!isRef && b!=null&&s!=null)?(s-b):null;
+    const sellCls = (s!=null&&s===bestSell)?'best':'', buyCls = (b!=null&&b===bestBuy)?'best':'';
+    return `<tr>
+      <td><span class="src"><span class="dot" style="background:${SRC_META[src].color}"></span>${SRC_META[src].label}</span></td>
+      <td class="${buyCls}">${fmt(b)}</td><td class="${sellCls}">${fmt(s)}</td>
+      <td>${spread==null?'—':fmt(spread)}</td></tr>`;
+  }).join('');
+  document.getElementById('cmpWrap').innerHTML =
+    `<table><thead><tr><th>Source</th><th>Buying</th><th>Selling</th><th>Spread</th></tr></thead><tbody>${rows}</tbody></table>
+     <div class="foot">As of ${latest.captured_at_bkt} BKT. Green = best rate. Spread = selling − buying.</div>`;
+}
+
+function renderMatrix() {
+  const data = windowed(); if (!data.length) return;
+  const latest = data[data.length-1];
+  const srcs = activeSources();
+  document.getElementById('matrixRate').textContent = state.rate==='sell'?'selling':'buying';
+  const head = `<tr><th>Currency</th>${srcs.map(s=>`<th>${SRC_META[s].label}</th>`).join('')}</tr>`;
+  const rows = allCurrencies().map(ccy => {
+    const vals = srcs.map(s => val(latest,s,ccy,state.rate));
+    const present = srcs.map((s,i)=>SRC_META[s].reference?null:vals[i]).filter(v=>v!=null);
+    const best = present.length ? (state.rate==='sell'?Math.min(...present):Math.max(...present)) : null;
+    const cells = vals.map(v => v==null
+      ? `<td class="miss">—</td>`
+      : `<td class="${v===best?'best':''}">${fmt(v)}</td>`).join('');
+    return `<tr data-code="${ccy}" style="cursor:pointer"><td><span class="flag">${FLAGS[ccy]||''}</span>${ccy}</td>${cells}</tr>`;
+  }).join('');
+  document.getElementById('matrixWrap').innerHTML = `<table><thead>${head}</thead><tbody>${rows}</tbody></table>`;
+  document.querySelectorAll('#matrixWrap tr[data-code]').forEach(tr => tr.onclick = () => {
+    state.ccy = tr.dataset.code; document.getElementById('ccy').value = state.ccy; renderAll();
+  });
+}
+
+function renderAll(){ renderChart(); renderComparison(); renderMatrix(); }
+
+renderBanner();
+if (snaps.length) { buildControls(); renderAll(); }
+</script>
+</body>
+</html>

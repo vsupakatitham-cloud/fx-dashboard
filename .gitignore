@@ -1,0 +1,6 @@
+# Local tooling — never publish these (large / machine-specific)
+node_modules/
+.pw-browsers/
+.npm-cache/
+logs/
+.DS_Store
