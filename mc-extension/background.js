@@ -8,7 +8,9 @@
 
 const CONVERTER_URL = 'https://www.mastercard.com/global/en/personal/get-support/currency-exchange-rate-converter.html';
 const FIRE_HOUR = 9;    // local time (your Mac/Chrome clock is BKT)
-const FIRE_MIN = 10;    // 09:10 — after the 09:00 launchd collector creates today's snapshot
+const FIRE_MIN = 0;     // 09:00 — same as the launchd collector. The collector finishes
+                        // in ~seconds, and the /mc endpoint waits for its snapshot before
+                        // merging, so there's no race even firing at the same minute.
 
 function nextFireTs() {
   const now = new Date();
@@ -24,6 +26,8 @@ function scheduleDaily() {
 
 chrome.runtime.onInstalled.addListener(scheduleDaily);
 chrome.runtime.onStartup.addListener(scheduleDaily);
+// Also (re)schedule whenever the service worker spins up — covers unpacked reloads.
+scheduleDaily();
 
 async function alreadyDoneToday() {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());

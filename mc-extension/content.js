@@ -3,8 +3,10 @@
  * so it never triggers while you're just browsing the page yourself.
  *
  * Captures the network/wholesale THB-per-1-FCY rate for the major currencies the
- * dashboard tracks, paced ~4s apart to stay under Akamai's rate limit, then POSTs
- * the result to the local fx-dashboard collector (server.js -> /mc).
+ * dashboard tracks. Akamai allows only ~4-5 quick requests before a short lockout,
+ * so we go in ROUNDS: request what's still missing (paced 4s apart), pause ~75s to
+ * let the short lockout clear, then retry the rest — up to 3 rounds. Then POST the
+ * combined result to the local fx-dashboard collector (server.js -> /mc).
  */
 (async () => {
   if (!location.hash.includes('fxauto')) return;
@@ -14,31 +16,53 @@
   const CCY = ['USD', 'EUR', 'JPY', 'GBP', 'CNY', 'AED', 'AUD', 'CAD', 'DKK'];
   const ENDPOINT = 'http://localhost:8777/mc';
   const SPACING_MS = 4000;
+  const ROUND_PAUSE_MS = 75000;
+  const MAX_ROUNDS = 3;
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  async function captureRound(list) {
+    const got = {};
+    const blocked = [];
+    let fxDate = null;
+    for (const c of list) {
+      try {
+        const r = await fetch(
+          `/settlement/currencyrate/conversion-rate?fxDate=0000-00-00&transCurr=${c}&crdhldBillCurr=THB&bankFee=0&transAmt=1`,
+          { headers: { Accept: 'application/json' } }
+        );
+        if (r.status === 200) {
+          const j = await r.json();
+          if (j && j.data && j.data.conversionRate) {
+            got[c] = +(+j.data.conversionRate).toFixed(6);
+            fxDate = j.data.fxDate || fxDate;
+          } else blocked.push(c);
+        } else blocked.push(c);
+      } catch (e) { blocked.push(c); }
+      await sleep(SPACING_MS);
+    }
+    return { got, blocked, fxDate };
+  }
 
   const rates = {};
   let fxDate = null;
-  const blocked = [];
+  let remaining = CCY.slice();
 
-  for (const c of CCY) {
-    try {
-      const r = await fetch(
-        `/settlement/currencyrate/conversion-rate?fxDate=0000-00-00&transCurr=${c}&crdhldBillCurr=THB&bankFee=0&transAmt=1`,
-        { headers: { Accept: 'application/json' } }
-      );
-      if (r.status === 200) {
-        const j = await r.json();
-        if (j && j.data && j.data.conversionRate) {
-          rates[c] = +(+j.data.conversionRate).toFixed(6);
-          fxDate = j.data.fxDate || fxDate;
-        } else blocked.push(c);
-      } else blocked.push(c);
-    } catch (e) { blocked.push(c); }
-    await new Promise((res) => setTimeout(res, SPACING_MS));
+  for (let round = 0; round < MAX_ROUNDS && remaining.length; round++) {
+    if (round > 0) {
+      console.log(`[mc-capture] round ${round + 1}: ${remaining.length} still blocked, waiting ${ROUND_PAUSE_MS / 1000}s…`);
+      await sleep(ROUND_PAUSE_MS);
+    }
+    const { got, blocked, fxDate: fd } = await captureRound(remaining);
+    Object.assign(rates, got);
+    if (fd) fxDate = fd;
+    remaining = blocked;
   }
 
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());
+  const captured = Object.keys(rates).length;
 
-  if (Object.keys(rates).length) {
+  if (captured) {
     try {
       const resp = await fetch(ENDPOINT, {
         method: 'POST',
@@ -46,22 +70,23 @@
         body: JSON.stringify({ fxDate, rates }),
       });
       const text = await resp.text();
-      console.log('[mc-capture] posted', Object.keys(rates).length, 'rates ->', resp.status, text);
+      console.log(`[mc-capture] posted ${captured}/${CCY.length} rates -> ${resp.status} ${text}`);
     } catch (e) {
       console.warn('[mc-capture] POST to collector failed (is server.js running?):', e);
     }
   } else {
-    console.warn('[mc-capture] all currencies blocked — Akamai lockout, will retry tomorrow.');
+    console.warn('[mc-capture] all currencies blocked after retries — Akamai lockout, will retry tomorrow.');
   }
 
   // Tell the service worker we're done (records lastRun + closes this tab).
-  // Only mark "done" if we actually captured something, so a fully-blocked run retries.
+  // Mark "done" only if we captured the full set, so a partial day can be retried
+  // with the toolbar button without the once-a-day guard blocking it.
   try {
     chrome.runtime.sendMessage({
       type: 'mcDone',
-      date: Object.keys(rates).length ? today : null,
-      captured: Object.keys(rates).length,
-      blocked,
+      date: captured === CCY.length ? today : null,
+      captured,
+      missing: remaining,
     });
   } catch (e) { /* worker may be asleep; harmless */ }
 })();

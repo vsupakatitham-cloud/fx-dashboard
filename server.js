@@ -21,6 +21,37 @@ function cors(res, origin) {
   res.setHeader('Vary', 'Origin');
 }
 
+function bangkokDate() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());
+}
+
+// Does today's (BKT) snapshot already exist? The Mastercard merge needs it.
+function hasTodaySnapshot() {
+  try {
+    const s = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'snapshots.json'), 'utf8'));
+    const today = bangkokDate();
+    return Array.isArray(s) && s.some((x) => x.date === today);
+  } catch { return false; }
+}
+
+// Wait for the 09:00 collector to write today's snapshot before merging. Normally
+// the collector finishes in seconds so this returns immediately; the polling only
+// matters if Mastercard fires before a slow collector. After ~3 min with no
+// snapshot (collector failed / Mac was asleep) we run collect.js ourselves.
+function ensureSnapshot(cb) {
+  const MAX_ATTEMPTS = 18; // 18 × 10s = 180s
+  let n = 0;
+  const tick = () => {
+    if (hasTodaySnapshot()) return cb(null);
+    if (++n >= MAX_ATTEMPTS) {
+      console.log('[/mc] snapshot still missing after wait — running collect.js fallback');
+      return execFile('node', ['collect.js'], { cwd: ROOT }, () => cb('fallback-collect'));
+    }
+    setTimeout(tick, 10000);
+  };
+  tick();
+}
+
 function handleMcPost(req, res) {
   let body = '';
   let tooBig = false;
@@ -41,20 +72,24 @@ function handleMcPost(req, res) {
     if (!Object.keys(clean).length) { res.writeHead(422); return res.end('no valid rates'); }
     const out = { fxDate: typeof payload.fxDate === 'string' ? payload.fxDate : null, rates: clean };
     fs.writeFileSync(path.join(ROOT, 'data', 'mc-input.json'), JSON.stringify(out, null, 2));
-    // Merge into today's snapshot, then publish. Fixed scripts only — no shell-injection surface.
-    execFile('node', ['merge-mastercard.js'], { cwd: ROOT }, (mErr, mOut, mErrOut) => {
-      const mergeLog = (mOut || '') + (mErrOut || '');
-      execFile('/bin/zsh', ['publish.sh'], { cwd: ROOT }, (pErr, pOut, pErrOut) => {
-        const pubLog = (pOut || '') + (pErrOut || '');
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          ok: !mErr,
-          received: Object.keys(clean).length,
-          fxDate: out.fxDate,
-          merge: mergeLog.trim(),
-          publish: pubLog.trim(),
-        }));
-        console.log(`[/mc] ${new Date().toISOString()} received ${Object.keys(clean).length} rates (fxDate ${out.fxDate}). ${mergeLog.trim()} | ${pubLog.trim()}`);
+    // Ensure today's snapshot exists, then merge + publish. Fixed scripts only — no
+    // shell-injection surface.
+    ensureSnapshot((waitNote) => {
+      execFile('node', ['merge-mastercard.js'], { cwd: ROOT }, (mErr, mOut, mErrOut) => {
+        const mergeLog = (mOut || '') + (mErrOut || '');
+        execFile('/bin/zsh', ['publish.sh'], { cwd: ROOT }, (pErr, pOut, pErrOut) => {
+          const pubLog = (pOut || '') + (pErrOut || '');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            ok: !mErr,
+            received: Object.keys(clean).length,
+            fxDate: out.fxDate,
+            wait: waitNote || 'snapshot-ready',
+            merge: mergeLog.trim(),
+            publish: pubLog.trim(),
+          }));
+          console.log(`[/mc] ${new Date().toISOString()} received ${Object.keys(clean).length} rates (fxDate ${out.fxDate}). ${mergeLog.trim()} | ${pubLog.trim()}`);
+        });
       });
     });
   });
