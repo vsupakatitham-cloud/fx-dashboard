@@ -46,11 +46,15 @@ const snapshots = JSON.parse(fs.readFileSync(JSON_PATH, 'utf8'));
 const snap = snapshots.find((s) => s.date === date);
 if (!snap) { console.error(`No snapshot for ${date}. Run collect.js first.`); process.exit(1); }
 
-const rates = {};
+// Upsert into any existing Mastercard block rather than replacing it — so a
+// partial capture (some currencies blocked by Akamai) never wipes out currencies
+// that an earlier capture the same day already got.
+const prev = snap.sources.mastercard || {};
+const rates = { ...(prev.rates || {}) };
 for (const [code, v] of Object.entries(input.rates || {})) {
   const val = +v;
   if (KT_SET.has(code) && isFinite(val)) rates[code] = { buy: val, sell: val };
 }
-snap.sources.mastercard = { ts: input.fxDate || null, reference: true, rates };
+snap.sources.mastercard = { ts: input.fxDate || prev.ts || null, reference: true, rates };
 writeOutputs(snapshots);
 console.log(`Merged Mastercard into ${date}: ${Object.keys(rates).length} currencies (fxDate ${input.fxDate || 'n/a'}).`);
