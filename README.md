@@ -51,6 +51,33 @@ so the order (collect → capture → merge) is safe. If some currencies come ba
 `blocked`, just re-run the snippet a few minutes later — merge only updates
 what's present.
 
+## Mastercard — hands-off capture (Chrome extension)
+
+To avoid the daily manual paste, a small Chrome extension (`mc-extension/`) runs
+the capture **inside your real Chrome session** — the only context Akamai lets
+through — and posts the result to a local endpoint that merges + publishes.
+
+**How it works:** a `chrome.alarms` timer fires daily at **09:10 BKT** (just after
+the 09:00 collector), opens the converter page in a background tab, captures the 9
+majors paced 4s apart, and `POST`s them to `http://localhost:8777/mc` (a route on
+`server.js`), which writes `data/mc-input.json`, runs `merge-mastercard.js`, and
+pushes. A once-a-day guard prevents repeats; the toolbar button forces a capture now.
+
+**One-time setup:**
+1. The local endpoint runs as a launchd agent that's always up — install once:
+   `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.jack.ktbfx.server.plist`
+   (copy `com.jack.ktbfx.server.plist` there first). It serves the dashboard at
+   `http://localhost:8777` and exposes `POST /mc`.
+2. In Chrome: `chrome://extensions` → enable **Developer mode** → **Load unpacked**
+   → select the `mc-extension/` folder.
+3. Click the extension's toolbar button once to confirm a capture works (watch
+   `logs/server.log` for a `[/mc] … published to GitHub Pages` line).
+
+**Caveats:** Chrome must be running for the daily alarm to fire (if it's closed at
+09:10, the alarm fires at next launch). The endpoint accepts only same-host POSTs
+from the Mastercard origin (`127.0.0.1`-bound + CORS-restricted). Still majors-only
+to stay under Akamai's limit — a too-aggressive burst triggers a multi-minute ban.
+
 ## Files
 
 | File | Purpose |
@@ -63,8 +90,10 @@ what's present.
 | `data/snapshots.csv` | Same data, long format (date,source,currency,buy,sell). |
 | `data/snapshots.js` | Auto-generated shim so the dashboard works via `file://`. |
 | `run.sh` | Wrapper launchd calls (sets browser path, logs). |
-| `com.jack.ktbfx.plist` | macOS launchd schedule (daily 09:05). |
-| `server.js` | Tiny static server for previewing the dashboard. |
+| `com.jack.ktbfx.plist` | macOS launchd schedule for the collector (daily 09:00). |
+| `com.jack.ktbfx.server.plist` | launchd agent that keeps `server.js` (and `POST /mc`) always running. |
+| `server.js` | Static server for the dashboard **+ `POST /mc`** collector endpoint. |
+| `mc-extension/` | Chrome extension: daily hands-off Mastercard capture → `POST /mc`. |
 
 ### Snapshot schema
 ```json
@@ -115,25 +144,32 @@ Re-running on the same day overwrites that day's entry (idempotent).
 node server.js     # then visit http://localhost:8777
 ```
 
-## Automate the 09:00 BKT capture (macOS launchd)
+## Automated 09:00 BKT capture (macOS launchd) — ACTIVE
 
-Your Mac's clock is Bangkok time, so 09:05 local = 09:05 BKT. The job runs
-unattended whenever the Mac is powered on (it does **not** need to be awake at
-exactly 09:05 — but it does need to be on; laptops asleep at 9am will capture
-when next awake only if you switch `RunAtLoad`/`StartInterval` accordingly).
+`com.jack.ktbfx` is installed and runs daily at **09:05 local (= BKT)**. The Mac
+must be powered on around then. Each run captures the 3 automated sources, then
+`publish.sh` pushes the data to GitHub Pages.
 
-**Activate:**
+> **Must live outside `~/Downloads`/`~/Desktop`/`~/Documents`** — those are macOS
+> TCC-protected and a launchd agent is denied access there ("can't open input
+> file"). Project is at `~/fx-dashboard`.
+
+> **Auto-publish needs git CLI credentials.** GitHub Desktop's login does NOT
+> carry over to the command-line git that launchd uses. Authenticate the CLI once
+> (Terminal): `git push` and enter your username + a Personal Access Token. The
+> `osxkeychain` helper then remembers it and the daily push works unattended.
+
+**Check status / logs:**
 ```sh
-cp "/Users/jack/Downloads/Claude-FX Dashboard/com.jack.ktbfx.plist" ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.jack.ktbfx.plist
-launchctl start com.jack.ktbfx     # optional: run once now to test
+launchctl list | grep ktbfx                 # last exit code (0 = ok)
+tail -f ~/fx-dashboard/logs/collect.log
 ```
 
-**Check / stop:**
+**Run once now / stop:**
 ```sh
-launchctl list | grep ktbfx
-tail -f "/Users/jack/Downloads/Claude-FX Dashboard/logs/collect.log"
-launchctl unload ~/Library/LaunchAgents/com.jack.ktbfx.plist   # stop
+launchctl kickstart "gui/$(id -u)/com.jack.ktbfx"            # run now
+launchctl bootout  "gui/$(id -u)/com.jack.ktbfx"             # stop
+launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.jack.ktbfx.plist  # start
 ```
 
 ## Notes

@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "KTB FX — Mastercard daily capture",
+  "version": "1.0.0",
+  "description": "Captures Mastercard network FX rates once a day from your real Chrome session and posts them to the local fx-dashboard collector.",
+  "permissions": ["alarms", "tabs", "storage"],
+  "host_permissions": [
+    "https://www.mastercard.com/*",
+    "http://localhost:8777/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://www.mastercard.com/global/en/personal/get-support/currency-exchange-rate-converter.html*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": { "default_title": "Capture Mastercard FX now" }
+}
