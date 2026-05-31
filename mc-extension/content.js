@@ -11,9 +11,10 @@
 (async () => {
   if (!location.hash.includes('fxauto')) return;
 
-  // Majors only — fewer requests = far lower lockout risk. Matches the set the
-  // dashboard has historically tracked for Mastercard.
-  const CCY = ['USD', 'EUR', 'JPY', 'GBP', 'CNY', 'AED', 'AUD', 'CAD', 'DKK'];
+  // The 9 currencies to track for Mastercard. Kept small (fewer requests = far
+  // lower Akamai lockout risk). All must be within Krungthai's 20, or the merge
+  // step drops them.
+  const CCY = ['USD', 'EUR', 'GBP', 'CNY', 'AUD', 'KRW', 'CHF', 'JPY', 'SGD'];
   const ENDPOINT = 'http://localhost:8777/mc';
   const SPACING_MS = 4000;
   const ROUND_PAUSE_MS = 75000;
