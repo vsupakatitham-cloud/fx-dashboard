@@ -16,31 +16,41 @@
   // step drops them.
   const CCY = ['USD', 'EUR', 'GBP', 'CNY', 'AUD', 'KRW', 'CHF', 'JPY', 'SGD', 'HKD'];
   const ENDPOINT = 'http://localhost:8777/mc';
-  const SPACING_MS = 4000;
-  const ROUND_PAUSE_MS = 75000;
-  const MAX_ROUNDS = 3;
+  const SPACING_MS = 4000;     // gap between requests within a batch
+  const BATCH_SIZE = 5;        // ≤5 requests per burst — Akamai locks after ~5
+  const BATCH_PAUSE_MS = 80000; // pause between batches so the rate window resets
+  const MAX_ROUNDS = 3;        // extra passes to mop up anything still blocked
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  async function captureRound(list) {
+  // Capture a list in batches of BATCH_SIZE, pausing BATCH_PAUSE_MS between batches
+  // so no single burst exceeds Akamai's ~5-request threshold (which is what was
+  // locking out the tail of a 10-request round and never recovering).
+  async function captureChunked(list) {
     const got = {};
     const blocked = [];
     let fxDate = null;
-    for (const c of list) {
-      try {
-        const r = await fetch(
-          `/settlement/currencyrate/conversion-rate?fxDate=0000-00-00&transCurr=${c}&crdhldBillCurr=THB&bankFee=0&transAmt=1`,
-          { headers: { Accept: 'application/json' } }
-        );
-        if (r.status === 200) {
-          const j = await r.json();
-          if (j && j.data && j.data.conversionRate) {
-            got[c] = +(+j.data.conversionRate).toFixed(6);
-            fxDate = j.data.fxDate || fxDate;
+    for (let i = 0; i < list.length; i += BATCH_SIZE) {
+      if (i > 0) {
+        console.log(`[mc-capture] batch pause ${BATCH_PAUSE_MS / 1000}s before next ${BATCH_SIZE}…`);
+        await sleep(BATCH_PAUSE_MS);
+      }
+      for (const c of list.slice(i, i + BATCH_SIZE)) {
+        try {
+          const r = await fetch(
+            `/settlement/currencyrate/conversion-rate?fxDate=0000-00-00&transCurr=${c}&crdhldBillCurr=THB&bankFee=0&transAmt=1`,
+            { headers: { Accept: 'application/json' } }
+          );
+          if (r.status === 200) {
+            const j = await r.json();
+            if (j && j.data && j.data.conversionRate) {
+              got[c] = +(+j.data.conversionRate).toFixed(6);
+              fxDate = j.data.fxDate || fxDate;
+            } else blocked.push(c);
           } else blocked.push(c);
-        } else blocked.push(c);
-      } catch (e) { blocked.push(c); }
-      await sleep(SPACING_MS);
+        } catch (e) { blocked.push(c); }
+        await sleep(SPACING_MS);
+      }
     }
     return { got, blocked, fxDate };
   }
@@ -51,10 +61,10 @@
 
   for (let round = 0; round < MAX_ROUNDS && remaining.length; round++) {
     if (round > 0) {
-      console.log(`[mc-capture] round ${round + 1}: ${remaining.length} still blocked, waiting ${ROUND_PAUSE_MS / 1000}s…`);
-      await sleep(ROUND_PAUSE_MS);
+      console.log(`[mc-capture] round ${round + 1}: ${remaining.length} still missing, waiting ${BATCH_PAUSE_MS / 1000}s…`);
+      await sleep(BATCH_PAUSE_MS);
     }
-    const { got, blocked, fxDate: fd } = await captureRound(remaining);
+    const { got, blocked, fxDate: fd } = await captureChunked(remaining);
     Object.assign(rates, got);
     if (fd) fxDate = fd;
     remaining = blocked;
