@@ -81,7 +81,9 @@
   </div>
 </div>
 
-<script src="data/snapshots.js"></script>
+<!-- Cache-bust the data so a refresh always shows the latest daily snapshot
+     (GitHub Pages serves data/* with a 10-min CDN cache; a unique ?v= sidesteps it). -->
+<script>document.write('<scr' + 'ipt src="data/snapshots.js?v=' + Date.now() + '"><\/scr' + 'ipt>');</script>
 <script>
 const FLAGS = {USD:'🇺🇸',EUR:'🇪🇺',JPY:'🇯🇵',GBP:'🇬🇧',CNY:'🇨🇳',AED:'🇦🇪',AUD:'🇦🇺',CAD:'🇨🇦',CHF:'🇨🇭',DKK:'🇩🇰',HKD:'🇭🇰',INR:'🇮🇳',KRW:'🇰🇷',NOK:'🇳🇴',NZD:'🇳🇿',QAR:'🇶🇦',SAR:'🇸🇦',SEK:'🇸🇪',SGD:'🇸🇬',TWD:'🇹🇼'};
 const SRC_META = {
