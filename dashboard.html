@@ -113,7 +113,7 @@ function val(snap, src, ccy, rate) {
   const r = snap.sources?.[src]?.rates?.[ccy];
   return r ? r[rate] : null;
 }
-function fmt(v){ return v==null ? '—' : (Math.abs(v) >= 10 ? v.toFixed(2) : v.toFixed(4)); }
+function fmt(v){ return v==null ? '—' : v.toFixed(4); }
 
 function renderBanner() {
   const b = document.getElementById('banner');
