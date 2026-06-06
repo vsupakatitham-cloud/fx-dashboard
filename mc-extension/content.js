@@ -14,18 +14,48 @@
   // The currencies to track for Mastercard. Kept small (fewer requests = far
   // lower Akamai lockout risk). All must be within Krungthai's 20, or the merge
   // step drops them.
-  const CCY = ['USD', 'EUR', 'GBP', 'CNY', 'AUD', 'KRW', 'CHF', 'JPY', 'SGD', 'HKD'];
   const ENDPOINT = 'http://localhost:8777/mc';
-  const WARMUP_MS = 20000;     // let Akamai's _abck sensor cookie establish before the 1st request
-                               // (a cold first request was dropping USD on 2026-06-06)
-  const SPACING_MS = 30000;    // 30s between EVERY request — steady & gentle, NO bursts, so the
-                               // rate limiter is far less likely to trip in the first place
-  const COOLDOWN_MS = 300000;  // 5 min QUIET after a 403 ban — poking it every few min keeps it
-                               // alive; only a quiet gap lets it clear (the v1.5 retries failed
-                               // because they kept poking a live ban)
-  const MAX_PASSES = 6;        // retry passes for anything still missing
+  const CONFIG_URL = 'http://localhost:8777/mc-config';
+
+  // Tunable settings. These defaults are overridden — WITHOUT an extension reload — by the
+  // local server's /mc-config (edit data/mc-config.json to change the currency list or
+  // timing). If the fetch fails (server down), we fall back to these built-ins.
+  //   warmupMs:   wait before the 1st request so Akamai's _abck sensor cookie is set
+  //   spacingMs:  gap between EVERY request — steady & gentle, no bursts
+  //   cooldownMs: QUIET period after a 403 ban so it can clear (don't poke a live ban)
+  //   maxPasses:  retry passes for anything still missing
+  const cfg = {
+    currencies: ['USD', 'EUR', 'GBP', 'CNY', 'AUD', 'KRW', 'CHF', 'JPY', 'SGD', 'HKD'],
+    warmupMs: 20000,
+    spacingMs: 30000,
+    cooldownMs: 300000,
+    maxPasses: 6,
+  };
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  try {
+    const cr = await fetch(CONFIG_URL, { cache: 'no-store' });
+    if (cr.ok) {
+      const c = await cr.json();
+      if (Array.isArray(c.currencies)) {
+        const list = c.currencies.filter((x) => /^[A-Z]{3}$/.test(x));
+        if (list.length) cfg.currencies = list;
+      }
+      for (const k of ['warmupMs', 'spacingMs', 'cooldownMs', 'maxPasses']) {
+        if (Number.isFinite(c[k]) && c[k] >= 0) cfg[k] = c[k];
+      }
+      console.log('[mc-capture] config from server:', JSON.stringify(cfg));
+    }
+  } catch (e) {
+    console.log('[mc-capture] config fetch failed — using built-in defaults');
+  }
+
+  const CCY = cfg.currencies;
+  const WARMUP_MS = cfg.warmupMs;
+  const SPACING_MS = cfg.spacingMs;
+  const COOLDOWN_MS = cfg.cooldownMs;
+  const MAX_PASSES = cfg.maxPasses;
 
   // Returns { rate, fxDate } on success, or { status } on failure (403 = active ban).
   async function fetchRate(c) {

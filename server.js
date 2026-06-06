@@ -105,6 +105,20 @@ http.createServer((req, res) => {
     res.writeHead(405); return res.end('method not allowed');
   }
 
+  // Tunable capture settings the browser extension reads each run — lets us change the
+  // currency list / timing WITHOUT reloading the extension. Served fresh from disk so
+  // edits to data/mc-config.json take effect on the next daily run (no server restart).
+  if (urlPath === '/mc-config') {
+    cors(res, origin);
+    if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+    if (req.method !== 'GET') { res.writeHead(405); return res.end('method not allowed'); }
+    return fs.readFile(path.join(ROOT, 'data', 'mc-config.json'), (err, buf) => {
+      if (err) { res.writeHead(404); return res.end('{}'); }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(buf);
+    });
+  }
+
   // Static file serving (GET).
   let p = decodeURIComponent(urlPath);
   if (p === '/') p = '/dashboard.html';

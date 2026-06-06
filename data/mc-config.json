@@ -1,0 +1,8 @@
+{
+  "_comment": "Tunable Mastercard-capture settings read by the browser extension each run (via GET http://localhost:8777/mc-config). Edit this file to change the tracked currencies or timing WITHOUT reloading the extension — changes take effect on the next daily run. currencies must all be within Krungthai's 20 or the merge drops them. Times are milliseconds.",
+  "currencies": ["USD", "EUR", "GBP", "CNY", "AUD", "KRW", "CHF", "JPY", "SGD", "HKD"],
+  "warmupMs": 20000,
+  "spacingMs": 30000,
+  "cooldownMs": 300000,
+  "maxPasses": 6
+}
