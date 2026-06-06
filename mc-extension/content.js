@@ -16,47 +16,28 @@
   // step drops them.
   const CCY = ['USD', 'EUR', 'GBP', 'CNY', 'AUD', 'KRW', 'CHF', 'JPY', 'SGD', 'HKD'];
   const ENDPOINT = 'http://localhost:8777/mc';
-  const SPACING_MS = 4000;        // gap between requests within a batch
-  const BATCH_SIZE = 4;           // ≤4 per burst — stays under Akamai's ~5 lockout threshold
-  const BATCH_PAUSE_MS = 150000;  // 2.5 min between batches so the rate window fully resets
-  const ROUND_PAUSE_MS = 180000;  // 3 min between retry rounds (80s did NOT clear the lockout)
-  const MAX_ROUNDS = 6;           // keep retrying the still-missing ones until all 10 land
+  const WARMUP_MS = 20000;     // let Akamai's _abck sensor cookie establish before the 1st request
+                               // (a cold first request was dropping USD on 2026-06-06)
+  const SPACING_MS = 30000;    // 30s between EVERY request — steady & gentle, NO bursts, so the
+                               // rate limiter is far less likely to trip in the first place
+  const COOLDOWN_MS = 300000;  // 5 min QUIET after a 403 ban — poking it every few min keeps it
+                               // alive; only a quiet gap lets it clear (the v1.5 retries failed
+                               // because they kept poking a live ban)
+  const MAX_PASSES = 6;        // retry passes for anything still missing
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+  // Returns { rate, fxDate } on success, or { status } on failure (403 = active ban).
   async function fetchRate(c) {
     const r = await fetch(
       `/settlement/currencyrate/conversion-rate?fxDate=0000-00-00&transCurr=${c}&crdhldBillCurr=THB&bankFee=0&transAmt=1`,
       { headers: { Accept: 'application/json' } }
     );
-    if (r.status !== 200) return null;
+    if (r.status !== 200) return { status: r.status };
     const j = await r.json();
     return (j && j.data && j.data.conversionRate)
       ? { rate: +(+j.data.conversionRate).toFixed(6), fxDate: j.data.fxDate || null }
-      : null;
-  }
-
-  // Capture a list in batches of BATCH_SIZE, pausing BATCH_PAUSE_MS between batches so
-  // no single burst exceeds Akamai's ~5-request threshold and each batch is seen fresh.
-  async function captureChunked(list) {
-    const got = {};
-    const blocked = [];
-    let fxDate = null;
-    for (let i = 0; i < list.length; i += BATCH_SIZE) {
-      if (i > 0) {
-        console.log(`[mc-capture] batch pause ${BATCH_PAUSE_MS / 1000}s before next ${BATCH_SIZE}…`);
-        await sleep(BATCH_PAUSE_MS);
-      }
-      for (const c of list.slice(i, i + BATCH_SIZE)) {
-        try {
-          const res = await fetchRate(c);
-          if (res) { got[c] = res.rate; fxDate = res.fxDate || fxDate; }
-          else blocked.push(c);
-        } catch (e) { blocked.push(c); }
-        await sleep(SPACING_MS);
-      }
-    }
-    return { got, blocked, fxDate };
+      : { status: 'empty' };
   }
 
   async function postRates(rates, fxDate) {
@@ -73,31 +54,54 @@
     }
   }
 
+  // One steady pass over `list` at SPACING_MS apart. On a 403 (ban) we stop poking
+  // immediately — the rest of the pass is marked blocked and the caller cools down.
+  async function capturePass(list) {
+    const got = {};
+    const blocked = [];
+    let fxDate = null;
+    let banned = false;
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i];
+      if (banned) { blocked.push(c); continue; }
+      try {
+        const res = await fetchRate(c);
+        if (res.rate != null) { got[c] = res.rate; fxDate = res.fxDate || fxDate; }
+        else { blocked.push(c); if (res.status === 403) banned = true; }
+      } catch (e) { blocked.push(c); }
+      if (!banned && i < list.length - 1) await sleep(SPACING_MS);
+    }
+    return { got, blocked, fxDate, banned };
+  }
+
+  // Warm up so Akamai's JS can set the sensor cookie before the first request.
+  console.log(`[mc-capture] warm-up ${WARMUP_MS / 1000}s…`);
+  await sleep(WARMUP_MS);
+
   const rates = {};
   let fxDate = null;
   let remaining = CCY.slice();
 
-  // Round 0 = first full pass; rounds 1..N retry only what's still missing, with a long
-  // pause between rounds so the lockout clears. Progress is POSTed (and upserted) after
-  // every round, so even if Chrome/the tab closes mid-way, what's captured is saved.
-  for (let round = 0; round < MAX_ROUNDS && remaining.length; round++) {
-    if (round > 0) {
-      console.log(`[mc-capture] round ${round + 1}: ${remaining.length} still missing (${remaining.join(',')}), waiting ${ROUND_PAUSE_MS / 1000}s…`);
-      await sleep(ROUND_PAUSE_MS);
-    }
-    const { got, blocked, fxDate: fd } = await captureChunked(remaining);
+  // Steady passes; POST after every pass (server upserts) so progress is never lost. After a
+  // ban, wait a long QUIET cooldown so it clears before retrying the still-missing ones.
+  for (let pass = 0; pass < MAX_PASSES && remaining.length; pass++) {
+    const { got, blocked, fxDate: fd, banned } = await capturePass(remaining);
     if (fd) fxDate = fd;
     if (Object.keys(got).length) {
       Object.assign(rates, got);
-      await postRates(rates, fxDate); // incremental save (server upserts)
+      await postRates(rates, fxDate);
     }
     remaining = blocked;
+    if (!remaining.length) break;
+    const wait = banned ? COOLDOWN_MS : SPACING_MS;
+    console.log(`[mc-capture] pass ${pass + 1}: still missing ${remaining.join(',')}${banned ? ` — banned, cooling down ${COOLDOWN_MS / 1000}s` : ''}`);
+    await sleep(wait);
   }
 
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());
   const captured = Object.keys(rates).length;
   if (!captured) {
-    console.warn('[mc-capture] all currencies blocked after all rounds — Akamai lockout.');
+    console.warn('[mc-capture] all currencies blocked after all passes — Akamai lockout.');
   } else if (remaining.length) {
     console.warn(`[mc-capture] finished ${captured}/${CCY.length}; still missing ${remaining.join(',')}.`);
   } else {
