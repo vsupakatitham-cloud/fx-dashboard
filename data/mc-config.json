@@ -1,8 +1,10 @@
 {
-  "_comment": "Tunable Mastercard-capture settings read by the browser extension each run (via GET http://localhost:8777/mc-config). Edit this file to change the tracked currencies or timing WITHOUT reloading the extension — changes take effect on the next daily run. currencies must all be within Krungthai's 20 or the merge drops them. Times are milliseconds.",
+  "_comment": "Tunable Mastercard-capture settings read by the browser extension each run (GET http://localhost:8777/mc-config). Edit to change tracked currencies or timing WITHOUT reloading the extension — takes effect next daily run. FRESH-SESSION model (v1.8.0): capture groupSize currencies, then reload the page for a fresh Akamai cookie, repeat. currencies must be within Krungthai's 20. Times in ms.",
   "currencies": ["USD", "EUR", "GBP", "CNY", "AUD", "KRW", "CHF", "JPY", "SGD", "HKD"],
   "warmupMs": 20000,
-  "spacingMs": 30000,
-  "cooldownMs": 900000,
-  "maxPasses": 4
+  "spacingMs": 10000,
+  "groupSize": 5,
+  "groupPauseMs": 45000,
+  "cooldownMs": 600000,
+  "maxReloads": 4
 }
