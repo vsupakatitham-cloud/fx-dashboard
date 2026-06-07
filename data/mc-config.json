@@ -3,6 +3,6 @@
   "currencies": ["USD", "EUR", "GBP", "CNY", "AUD", "KRW", "CHF", "JPY", "SGD", "HKD"],
   "warmupMs": 20000,
   "spacingMs": 30000,
-  "cooldownMs": 300000,
-  "maxPasses": 6
+  "cooldownMs": 900000,
+  "maxPasses": 4
 }
