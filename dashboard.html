@@ -40,7 +40,7 @@
 <body>
 <header>
   <h1>FX Rate Monitor — Krungthai Travel Card vs. peers</h1>
-  <p>Daily 09:00 BKT snapshot · Krungthai · Krungsri Boarding · Superrich Thailand · Mastercard · trailing 30 days</p>
+  <p>Daily 09:00 BKT snapshot · Krungthai · Krungsri Boarding · Superrich Thailand · Mastercard · selectable 7d–90d window (all history kept)</p>
 </header>
 <div class="wrap">
   <div id="banner" class="banner"></div>
@@ -55,6 +55,8 @@
     </div>
     <div><label>Window</label>
       <span class="seg" id="winSeg">
+        <button data-w="90">90d</button>
+        <button data-w="60">60d</button>
         <button data-w="30" class="active">30d</button>
         <button data-w="14">14d</button>
         <button data-w="7">7d</button>
@@ -120,7 +122,7 @@ function renderBanner() {
   if (!snaps.length) { b.textContent = 'No snapshots yet — run: node collect.js'; return; }
   const n = snaps.length, srcs = activeSources().map(s=>SRC_META[s].label).join(' · ');
   const hasMC = activeSources().includes('mastercard');
-  b.innerHTML = `<b>${n} of 30</b> day${n>1?'s':''} collected (${snaps[0].date} → ${snaps[n-1].date}). Sources: ${srcs}.` +
+  b.innerHTML = `<b>${n}</b> day${n>1?'s':''} collected (${snaps[0].date} → ${snaps[n-1].date}). Sources: ${srcs}.` +
     (hasMC ? '' : ` <span class="miss">Mastercard not collected (Akamai blocks automation — see README).</span>`);
 }
 
