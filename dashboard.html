@@ -92,13 +92,13 @@ const SRC_META = {
   krungthai: { label: 'Krungthai (card)', color: '#00a4e4' },
   krungsri:  { label: 'Krungsri Boarding', color: '#f59e0b' },
   superrich: { label: 'Superrich TH',      color: '#16a34a' },
-  kjourney:  { label: 'K-Journey (KBank debit)', color: '#7c3aed' },
+  kjourney:  { label: 'K-Journey (KBank debit)', color: '#166534' },
   mastercard:{ label: 'Mastercard (wholesale)', color: '#dc2626', reference: true },
 };
 const SRC_ORDER = ['krungthai','krungsri','superrich','kjourney','mastercard'];
 
 const snaps = (window.FX_SNAPSHOTS || []).slice().sort((a,b)=>a.date.localeCompare(b.date));
-let state = { ccy:'USD', rate:'sell', win:30 };
+let state = { ccy:'USD', rate:'sell', win:30, focus:new Set() };
 let chart;
 
 function activeSources() {
@@ -143,13 +143,20 @@ function renderChart() {
   const srcs = activeSources();
   document.getElementById('chartTitle').textContent =
     `${FLAGS[state.ccy]||''} ${state.ccy}/THB — ${state.rate==='sell'?'Selling':'Buying'} rate by source`;
-  const datasets = srcs.map(src => ({
-    label: SRC_META[src].label,
-    data: data.map(s => val(s, src, state.ccy, state.rate)),
-    borderColor: SRC_META[src].color, backgroundColor: SRC_META[src].color,
-    borderWidth: 2, pointRadius: data.length > 25 ? 1.5 : 3, tension: .25, spanGaps: true,
-    borderDash: SRC_META[src].reference ? [6, 4] : [],
-  })).filter(ds => ds.data.some(v => v != null));
+  const focusOn = state.focus.size > 0;
+  const datasets = srcs.map(src => {
+    const dim = focusOn && !state.focus.has(src);
+    const color = dim ? 'rgba(148,163,184,0.5)' : SRC_META[src].color;
+    return {
+      _src: src,
+      label: SRC_META[src].label,
+      data: data.map(s => val(s, src, state.ccy, state.rate)),
+      borderColor: color, backgroundColor: color,
+      borderWidth: dim ? 1 : 2, pointRadius: dim ? 0 : (data.length > 25 ? 1.5 : 3),
+      tension: .25, spanGaps: true, order: dim ? 2 : 1,
+      borderDash: SRC_META[src].reference ? [6, 4] : [],
+    };
+  }).filter(ds => ds.data.some(v => v != null));
 
   if (chart) chart.destroy();
   chart = new Chart(document.getElementById('chart'), {
@@ -162,8 +169,17 @@ function renderChart() {
       scales: { y: { grid: { color:'#eef1f5' } }, x: { grid: { display:false } } },
     },
   });
-  document.getElementById('legend').innerHTML = datasets.map(ds =>
-    `<span class="src"><span class="dot" style="background:${ds.borderColor}"></span>${ds.label}</span>`).join('');
+  document.getElementById('legend').innerHTML = datasets.map(ds => {
+    const src = ds._src, dim = focusOn && !state.focus.has(src);
+    return `<span class="src leg" data-src="${src}" title="click to focus" style="cursor:pointer;user-select:none;${dim?'opacity:.4;':''}">`
+      + `<span class="dot" style="background:${dim?'#cbd5e1':SRC_META[src].color}"></span>${SRC_META[src].label}</span>`;
+  }).join('') + `<span style="font-size:12px;color:var(--muted);margin-left:6px">click a source to focus · others dim`
+    + (focusOn ? ` · <a href="#" id="legreset" style="color:var(--navy)">show all</a>` : '') + `</span>`;
+  document.querySelectorAll('#legend .leg').forEach(el => el.onclick = () => {
+    const s = el.dataset.src; state.focus.has(s) ? state.focus.delete(s) : state.focus.add(s); renderChart();
+  });
+  const reset = document.getElementById('legreset');
+  if (reset) reset.onclick = (e) => { e.preventDefault(); state.focus.clear(); renderChart(); };
   // spread note vs first day for Krungthai
   const ktVals = data.map(s => val(s,'krungthai',state.ccy,state.rate)).filter(v=>v!=null);
   document.getElementById('chartFoot').textContent = data.length < 2
