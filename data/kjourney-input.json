@@ -1,0 +1,25 @@
+{
+  "ts": "2026-06-21",
+  "rates": {
+    "USD": {
+      "buy": null,
+      "sell": 32.99992
+    },
+    "EUR": {
+      "buy": null,
+      "sell": 37.89382
+    },
+    "GBP": {
+      "buy": null,
+      "sell": 43.7282
+    },
+    "JPY": {
+      "buy": null,
+      "sell": 0.20499
+    },
+    "CNY": {
+      "buy": null,
+      "sell": 4.87782
+    }
+  }
+}

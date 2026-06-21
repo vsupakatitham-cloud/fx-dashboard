@@ -40,7 +40,7 @@
 <body>
 <header>
   <h1>FX Rate Monitor — Krungthai Travel Card vs. peers</h1>
-  <p>Daily 09:00 BKT snapshot · Krungthai · Krungsri Boarding · Superrich Thailand · Mastercard · selectable 7d–90d window (all history kept)</p>
+  <p>Daily 09:00 BKT snapshot · Krungthai · Krungsri Boarding · Superrich Thailand · K-Journey (KBank) · Mastercard · selectable 7d–90d window (all history kept)</p>
 </header>
 <div class="wrap">
   <div id="banner" class="banner"></div>
@@ -92,9 +92,10 @@ const SRC_META = {
   krungthai: { label: 'Krungthai (card)', color: '#00a4e4' },
   krungsri:  { label: 'Krungsri Boarding', color: '#f59e0b' },
   superrich: { label: 'Superrich TH',      color: '#16a34a' },
+  kjourney:  { label: 'K-Journey (KBank debit)', color: '#7c3aed' },
   mastercard:{ label: 'Mastercard (wholesale)', color: '#dc2626', reference: true },
 };
-const SRC_ORDER = ['krungthai','krungsri','superrich','mastercard'];
+const SRC_ORDER = ['krungthai','krungsri','superrich','kjourney','mastercard'];
 
 const snaps = (window.FX_SNAPSHOTS || []).slice().sort((a,b)=>a.date.localeCompare(b.date));
 let state = { ccy:'USD', rate:'sell', win:30 };
