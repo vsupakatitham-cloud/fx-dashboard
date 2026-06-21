@@ -6475,10 +6475,10 @@
   },
   {
     "date": "2026-06-21",
-    "captured_at_bkt": "2026-06-21 07:28:20",
+    "captured_at_bkt": "2026-06-21 09:00:01",
     "sources": {
       "krungthai": {
-        "ts": "2026-06-20 22:04:00",
+        "ts": "2026-06-21 09:00:00",
         "rates": {
           "USD": {
             "buy": 32.88,
@@ -6713,91 +6713,6 @@
           "INR": {
             "buy": 0.335,
             "sell": 0.35
-          }
-        }
-      },
-      "kjourney": {
-        "ts": "2026-06-21",
-        "rates": {
-          "USD": {
-            "buy": null,
-            "sell": 32.99992
-          },
-          "EUR": {
-            "buy": null,
-            "sell": 37.89382
-          },
-          "GBP": {
-            "buy": null,
-            "sell": 43.7282
-          },
-          "JPY": {
-            "buy": null,
-            "sell": 0.20499
-          },
-          "CNY": {
-            "buy": null,
-            "sell": 4.87782
-          },
-          "HKD": {
-            "buy": null,
-            "sell": 4.21168
-          },
-          "KRW": {
-            "buy": null,
-            "sell": 0.02165
-          },
-          "SGD": {
-            "buy": null,
-            "sell": 25.63098
-          },
-          "AED": {
-            "buy": null,
-            "sell": 8.98618
-          },
-          "AUD": {
-            "buy": null,
-            "sell": 23.20881
-          },
-          "CAD": {
-            "buy": null,
-            "sell": 23.37599
-          },
-          "CHF": {
-            "buy": null,
-            "sell": 41.07534
-          },
-          "DKK": {
-            "buy": null,
-            "sell": 5.07255
-          },
-          "INR": {
-            "buy": null,
-            "sell": 0.35032
-          },
-          "NOK": {
-            "buy": null,
-            "sell": 3.42678
-          },
-          "NZD": {
-            "buy": null,
-            "sell": 19.03762
-          },
-          "QAR": {
-            "buy": null,
-            "sell": 9.05373
-          },
-          "SAR": {
-            "buy": null,
-            "sell": 8.79293
-          },
-          "SEK": {
-            "buy": null,
-            "sell": 3.45328
-          },
-          "TWD": {
-            "buy": null,
-            "sell": 1.04371
           }
         }
       }
