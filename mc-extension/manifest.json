@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "KTB FX — Mastercard daily capture",
-  "version": "1.8.0",
-  "description": "Captures Mastercard network FX rates once a day from your real Chrome session and posts them to the local fx-dashboard collector.",
+  "name": "KTB FX — daily rate capture",
+  "version": "1.9.0",
+  "description": "Captures Mastercard network rates and KBank K-Journey debit rates once a day from your real Chrome session and posts them to the local fx-dashboard collector.",
   "permissions": [
     "alarms",
     "tabs",
@@ -10,6 +10,7 @@
   ],
   "host_permissions": [
     "https://www.mastercard.com/*",
+    "https://www.kasikornbank.com/*",
     "http://localhost:8777/*"
   ],
   "background": {
@@ -24,9 +25,18 @@
         "content.js"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.kasikornbank.com/th/personal/Debit-Card/Pages/exchange-rate.aspx*"
+      ],
+      "js": [
+        "kbank.js"
+      ],
+      "run_at": "document_idle"
     }
   ],
   "action": {
-    "default_title": "Capture Mastercard FX now"
+    "default_title": "Capture FX rates now (Mastercard + K-Journey)"
   }
 }
