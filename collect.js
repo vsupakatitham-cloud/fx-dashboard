@@ -193,10 +193,15 @@ function writeOutputs(snapshots) {
 
   if (!Object.keys(sources).length) throw new Error('All sources failed.');
 
-  // preserve any previously-captured mastercard block for today (manual merges)
+  // Preserve any externally-merged sources for today (mastercard, kjourney, ...). collect.js
+  // only produces krungthai/krungsri/superrich, so on a same-day rerun it must NOT clobber
+  // the others that the browser-extension captures POST in separately.
+  const OWN = new Set(['krungthai', 'krungsri', 'superrich']);
   const snapshots = loadSnapshots();
   const existing = snapshots.find((s) => s.date === now.date);
-  if (existing?.sources?.mastercard) sources.mastercard = existing.sources.mastercard;
+  if (existing?.sources) for (const [k, v] of Object.entries(existing.sources)) {
+    if (!OWN.has(k)) sources[k] = v;
+  }
 
   const snapshot = { date: now.date, captured_at_bkt: `${now.date} ${now.time}`, sources };
   const idx = snapshots.findIndex((s) => s.date === now.date);

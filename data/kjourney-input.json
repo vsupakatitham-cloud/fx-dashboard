@@ -20,6 +20,98 @@
     "CNY": {
       "buy": null,
       "sell": 4.87782
+    },
+    "HKD": {
+      "buy": null,
+      "sell": 4.21168
+    },
+    "KRW": {
+      "buy": null,
+      "sell": 0.02165
+    },
+    "SGD": {
+      "buy": null,
+      "sell": 25.63098
+    },
+    "AED": {
+      "buy": null,
+      "sell": 8.98618
+    },
+    "AUD": {
+      "buy": null,
+      "sell": 23.20881
+    },
+    "BHD": {
+      "buy": null,
+      "sell": 87.53295
+    },
+    "BND": {
+      "buy": null,
+      "sell": 25.63098
+    },
+    "CAD": {
+      "buy": null,
+      "sell": 23.37599
+    },
+    "CHF": {
+      "buy": null,
+      "sell": 41.07534
+    },
+    "DKK": {
+      "buy": null,
+      "sell": 5.07255
+    },
+    "IDR": {
+      "buy": null,
+      "sell": 0.00185
+    },
+    "INR": {
+      "buy": null,
+      "sell": 0.35032
+    },
+    "MYR": {
+      "buy": null,
+      "sell": 8.02918
+    },
+    "NOK": {
+      "buy": null,
+      "sell": 3.42678
+    },
+    "NZD": {
+      "buy": null,
+      "sell": 19.03762
+    },
+    "PHP": {
+      "buy": null,
+      "sell": 0.54388
+    },
+    "QAR": {
+      "buy": null,
+      "sell": 9.05373
+    },
+    "RUB": {
+      "buy": null,
+      "sell": 0.45224
+    },
+    "SAR": {
+      "buy": null,
+      "sell": 8.79293
+    },
+    "SEK": {
+      "buy": null,
+      "sell": 3.45328
+    },
+    "TWD": {
+      "buy": null,
+      "sell": 1.04371
+    },
+    "VND": {
+      "buy": null,
+      "sell": 0.00125
+    },
+    "ZAR": {
+      "buy": null,
+      "sell": 2.01687
     }
   }
 }
