@@ -15,12 +15,19 @@
     "at": "2026-07-02T11:06:32Z",
     "detail": "published"
   },
-  "updated": "2026-07-02T11:12:52.108Z",
+  "updated": "2026-07-02T11:26:02.724Z",
   "captures": {
     "kjourney": {
       "ok": true,
       "at": "2026-07-02T11:06:33.027Z",
       "count": 20
     }
+  },
+  "validation": {
+    "ok": false,
+    "at": "2026-07-02T11:26:02.723Z",
+    "issues": [
+      "krungthai.USD.sell: 333.6 deviates 898.2% from 7-day median 33.42"
+    ]
   }
 }
