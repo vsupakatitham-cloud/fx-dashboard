@@ -6,6 +6,21 @@ cd "$(dirname "$0")" || exit 1
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "not a git repo"; exit 0; }
 git remote get-url origin >/dev/null 2>&1 || { echo "no 'origin' remote set yet — skipping push"; exit 0; }
 
+# Validation gate (roadmap 0.3): refuse to publish a broken/anomalous snapshot.
+# validate.js writes the quarantine file + status.json entry itself; we revert the
+# data files to the last published state and push ONLY the status file, so the
+# failure is visible remotely but bad data never reaches the site.
+if ! node validate.js; then
+  echo "validation FAILED — reverting data files, publishing status only"
+  git checkout -- data/snapshots.json data/snapshots.js data/snapshots.csv 2>/dev/null
+  git add data/status.json 2>/dev/null
+  if ! git diff --cached --quiet; then
+    git commit -q -m "status: data anomaly — snapshot quarantined, not published"
+    git push -q origin main || echo "status push failed"
+  fi
+  exit 1
+fi
+
 git add data/snapshots.json data/snapshots.js data/snapshots.csv data/status.json 2>/dev/null
 if git diff --cached --quiet; then
   echo "no data changes to publish"

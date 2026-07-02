@@ -7,3 +7,6 @@ logs/
 
 # Local input artifacts
 Screenshot*.png
+
+# Quarantined (validation-failed) snapshots — never published
+quarantine/

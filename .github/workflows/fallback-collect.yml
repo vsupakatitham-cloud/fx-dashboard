@@ -1,0 +1,35 @@
+# Cloud fallback collector (roadmap 0.2): if the Mac was powered off at 09:00 BKT,
+# capture at least the API-only source (Superrich) so the day isn't empty. No-ops
+# whenever the local pipeline already ran (today's snapshot has superrich).
+# Note: Actions cron can lag several minutes past the scheduled time.
+name: fallback-collect
+on:
+  schedule:
+    - cron: '5 2 * * *'   # 02:05 UTC = 09:05 BKT daily
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Collect (no-op if local pipeline already ran)
+        run: node collect-cloud.js
+      - name: Commit and push if anything changed
+        run: |
+          if git diff --quiet -- data; then
+            echo "no changes — local pipeline already covered today"
+            exit 0
+          fi
+          git config user.name "fx-fallback-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/snapshots.json data/snapshots.js data/snapshots.csv data/status.json
+          git commit -m "data: cloud fallback snapshot $(TZ=Asia/Bangkok date +%F)"
+          # A local push could land between our checkout and push — rebase once and retry.
+          git push origin main || (git pull --rebase origin main && git push origin main)
