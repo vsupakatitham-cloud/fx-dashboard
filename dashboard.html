@@ -14,6 +14,8 @@
   header p { margin:6px 0 0; font-size:13px; opacity:.85; }
   .wrap { max-width:1180px; margin:0 auto; padding:22px 28px 70px; }
   .banner { background:#fff8e1; border:1px solid #f0d98a; color:#7a5b00; padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:16px; }
+  .health-red { background:#fee2e2; border:1px solid #fca5a5; color:#991b1b; }
+  .health-amber { background:#fff8e1; border:1px solid #f0d98a; color:#7a5b00; }
   .controls { display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-bottom:18px; }
   .controls label { font-size:13px; color:var(--muted); margin-right:6px; }
   select { padding:7px 10px; border:1px solid var(--line); border-radius:7px; font-size:14px; background:#fff; color:var(--ink); }
@@ -43,6 +45,7 @@
   <p>Daily 09:00 BKT snapshot · Krungthai · Krungsri Boarding · Superrich Thailand · K-Journey (KBank) · Mastercard · selectable 7d–90d window (all history kept)</p>
 </header>
 <div class="wrap">
+  <div id="health" style="display:none"></div>
   <div id="banner" class="banner"></div>
 
   <div class="controls">
@@ -237,6 +240,31 @@ function renderAll(){ renderChart(); renderComparison(); renderMatrix(); }
 
 renderBanner();
 if (snaps.length) { buildControls(); renderAll(); }
+
+// Pipeline health banner — reads data/status.json, written by every pipeline step
+// (collector, captures, publish). Red = broken/stale, amber = degraded. Note: a
+// FAILED push can only be shown on the local dashboard (a failed push never
+// reaches Pages); remotely it appears as staleness (no update for today).
+(() => {
+  fetch('data/status.json?v=' + Date.now()).then(r => r.ok ? r.json() : null).then(st => {
+    if (!st) return;
+    const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+      .formatToParts(new Date()).reduce((o, x) => (o[x.type] = x.value, o), {});
+    const todayBkk = `${p.year}-${p.month}-${p.day}`;
+    const minsBkk = +p.hour * 60 + +p.minute;
+    const issues = [];
+    if (st.push && st.push.ok === false) issues.push(['red', 'Last publish FAILED — data shown may be stale (check push auth).']);
+    if (st.collector && st.collector.ok === false) issues.push(['red', `Collector failed on its last run${st.collector.error ? ': ' + st.collector.error : ''}.`]);
+    if (st.date && st.date < todayBkk && minsBkk >= 9 * 60 + 20) issues.push(['red', `No collection for ${todayBkk} yet — last successful day: ${st.date}.`]);
+    if (st.collector && st.collector.ok && st.collector.counts && Object.values(st.collector.counts).some(c => !c)) issues.push(['amber', 'A collector source returned no data on the last run.']);
+    if (st.collector && st.collector.late) issues.push(['amber', "Today's snapshot is a late catch-up capture (Mac was off at 09:00)."]);
+    if (!issues.length) return;
+    const el = document.getElementById('health');
+    el.className = 'banner health-' + (issues.some(i => i[0] === 'red') ? 'red' : 'amber');
+    el.textContent = issues.map(i => i[1]).join(' ');
+    el.style.display = '';
+  }).catch(() => {});
+})();
 </script>
 </body>
 </html>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.jack.ktbfx.catchup</string>
+
+  <!-- Missed-day safety net. The main 09:00 job (com.jack.ktbfx) fires on wake if
+       the Mac was ASLEEP, but a day when the Mac was powered OFF at 09:00 is lost —
+       and bank rates cannot be backfilled. This job runs `run.sh --catchup` at
+       login/boot and hourly; the guard (should-catchup.js) makes it a no-op unless
+       today's snapshot is actually missing past 09:05 BKT, so it can never clobber
+       a normal 09:00 capture. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/jack/fx-dashboard/run.sh</string>
+    <string>--catchup</string>
+  </array>
+
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>3600</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/jack/fx-dashboard/logs/catchup.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/jack/fx-dashboard/logs/catchup.err.log</string>
+</dict>
+</plist>

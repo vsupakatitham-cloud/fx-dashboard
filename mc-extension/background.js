@@ -48,6 +48,22 @@ chrome.alarms.onAlarm.addListener((a) => {
   openIfNeeded(KBANK_URL, 'kbankLastRun', false);
 });
 
+// Catch-up: if Chrome starts (or the service worker wakes) after 09:00 local and
+// today's captures haven't run — e.g. the Mac was powered off at 09:00 — run them
+// now. The per-day guards make this idempotent; a capture that already succeeded
+// today is never repeated. (A capture that FAILED outright leaves its guard unset,
+// so it also gets retried on the next worker wake — intentional.)
+async function catchUpIfMissed() {
+  const now = new Date();
+  const nine = new Date(now);
+  nine.setHours(FIRE_HOUR, FIRE_MIN, 0, 0);
+  if (now < nine) return;
+  openIfNeeded(MASTERCARD_URL, 'lastRun', false);
+  openIfNeeded(KBANK_URL, 'kbankLastRun', false);
+}
+chrome.runtime.onStartup.addListener(catchUpIfMissed);
+catchUpIfMissed();
+
 // Toolbar button = manual "capture now" for both sources (ignores the once-a-day guard).
 chrome.action.onClicked.addListener(() => {
   openIfNeeded(MASTERCARD_URL, 'lastRun', true);

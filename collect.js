@@ -204,10 +204,31 @@ function writeOutputs(snapshots) {
   }
 
   const snapshot = { date: now.date, captured_at_bkt: `${now.date} ${now.time}`, sources };
-  const idx = snapshots.findIndex((s) => s.date === now.date);
+  // A NEW snapshot created after 09:30 BKT is a late/catch-up capture (Mac was off
+  // at 09:00) — flag it so the dashboard/status can annotate it. Same-day reruns
+  // keep whatever the original run decided.
+  const isNew = idxOf(snapshots, now.date) < 0;
+  const minutes = +now.time.slice(0, 2) * 60 + +now.time.slice(3, 5);
+  if (isNew && minutes > 9 * 60 + 30) snapshot.late = true;
+  else if (!isNew && existing?.late) snapshot.late = true;
+  const idx = idxOf(snapshots, now.date);
   if (idx >= 0) snapshots[idx] = snapshot; else snapshots.push(snapshot);
   snapshots.sort((a, b) => a.date.localeCompare(b.date));
 
   writeOutputs(snapshots);
-  console.log(`[${snapshot.captured_at_bkt}] sources: ${Object.keys(sources).join(', ')}. Total days: ${snapshots.length}`);
-})().catch((e) => { console.error('Collector failed:', e.message); process.exit(1); });
+  console.log(`[${snapshot.captured_at_bkt}] sources: ${Object.keys(sources).join(', ')}${snapshot.late ? ' (LATE catch-up)' : ''}. Total days: ${snapshots.length}`);
+
+  // Record pipeline health (data/status.json) — see status.js.
+  const counts = {};
+  for (const k of OWN) counts[k] = sources[k] ? Object.keys(sources[k].rates).length : 0;
+  require('./status').merge({
+    date: now.date,
+    collector: { ok: true, at: new Date().toISOString(), late: !!snapshot.late, counts },
+  });
+})().catch((e) => {
+  console.error('Collector failed:', e.message);
+  try { require('./status').merge({ collector: { ok: false, at: new Date().toISOString(), error: e.message } }); } catch (e2) { /* best effort */ }
+  process.exit(1);
+});
+
+function idxOf(snapshots, date) { return snapshots.findIndex((s) => s.date === date); }

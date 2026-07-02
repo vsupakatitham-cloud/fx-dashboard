@@ -8,6 +8,16 @@ const { execFile } = require('child_process');
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8777;
+const status = require('./status');
+
+// Record a capture's outcome in data/status.json (count parsed from the merge log,
+// e.g. "Merged kjourney into 2026-07-02: 20 currencies").
+function recordCapture(name, mergeLog, received, ok) {
+  const m = (mergeLog || '').match(/:\s*(\d+)\s+currencies/);
+  try {
+    status.merge({ captures: { [name]: { ok, at: new Date().toISOString(), count: m ? +m[1] : received } } });
+  } catch (e) { /* best effort */ }
+}
 const TYPES = { '.html':'text/html', '.js':'text/javascript', '.json':'application/json',
   '.css':'text/css', '.csv':'text/csv', '.png':'image/png', '.svg':'image/svg+xml' };
 
@@ -93,6 +103,7 @@ function handleMcPost(req, res) {
             publish: pubLog.trim(),
           }));
           console.log(`[/mc] ${new Date().toISOString()} received ${Object.keys(clean).length} rates (fxDate ${out.fxDate}). ${mergeLog.trim()} | ${pubLog.trim()}`);
+          recordCapture('mastercard', mergeLog, Object.keys(clean).length, !mErr);
         });
       });
     });
@@ -136,6 +147,7 @@ function handleSrcPost(req, res) {
             wait: waitNote || 'snapshot-ready', merge: mergeLog.trim(), publish: pubLog.trim(),
           }));
           console.log(`[/src ${source}] ${new Date().toISOString()} received ${Object.keys(clean).length} rates. ${mergeLog.trim()} | ${pubLog.trim()}`);
+          recordCapture(source, mergeLog, Object.keys(clean).length, !mErr);
         });
       });
     });
