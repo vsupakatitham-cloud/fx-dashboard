@@ -1,8 +1,8 @@
 {
-  "date": "2026-07-02",
+  "date": "2026-07-03",
   "collector": {
     "ok": true,
-    "at": "2026-07-02T02:00:10Z",
+    "at": "2026-07-03T02:00:11.250Z",
     "late": false,
     "counts": {
       "krungthai": 20,
@@ -15,7 +15,7 @@
     "at": "2026-07-02T11:26:36Z",
     "detail": "published"
   },
-  "updated": "2026-07-02T11:26:36.086Z",
+  "updated": "2026-07-03T02:00:11.320Z",
   "captures": {
     "kjourney": {
       "ok": true,
@@ -25,6 +25,6 @@
   },
   "validation": {
     "ok": true,
-    "at": "2026-07-02T11:26:32.428Z"
+    "at": "2026-07-03T02:00:11.320Z"
   }
 }
