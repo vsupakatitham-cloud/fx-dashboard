@@ -12,19 +12,24 @@
   },
   "push": {
     "ok": true,
-    "at": "2026-07-03T02:00:24Z",
+    "at": "2026-07-03T02:01:13Z",
     "detail": "published"
   },
-  "updated": "2026-07-03T02:01:09.560Z",
+  "updated": "2026-07-03T02:03:05.370Z",
   "captures": {
     "kjourney": {
       "ok": true,
       "at": "2026-07-03T02:00:25.038Z",
       "count": 20
+    },
+    "mastercard": {
+      "ok": true,
+      "at": "2026-07-03T02:01:13.141Z",
+      "count": 5
     }
   },
   "validation": {
     "ok": true,
-    "at": "2026-07-03T02:01:09.560Z"
+    "at": "2026-07-03T02:03:05.370Z"
   }
 }
