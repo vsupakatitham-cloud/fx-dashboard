@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "KTB FX — daily rate capture",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "description": "Captures Mastercard network rates and KBank K-Journey debit rates once a day from your real Chrome session and posts them to the local fx-dashboard collector.",
   "permissions": [
     "alarms",

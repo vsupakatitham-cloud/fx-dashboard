@@ -37,8 +37,22 @@ async function doneToday(key) {
 }
 // Open a rate page (background tab) with the #fxauto marker so its content script runs.
 // Each source has its own once-a-day guard key; force=true ignores it (toolbar button).
+//
+// In-progress guard: "done" is only recorded when a capture COMPLETES, and the
+// Mastercard capture runs for many minutes — meanwhile any service-worker wake
+// (e.g. the K-Journey tab's completion message) re-ran the catch-up and opened a
+// SECOND tab capturing in parallel (seen 2026-07-04: every POST duplicated, double
+// traffic tripping Akamai, rounds crawling at +3 ccys). So also skip if a capture
+// for this source STARTED recently and may still be running.
+const IN_PROGRESS_MS = 45 * 60 * 1000;
 async function openIfNeeded(url, key, force) {
   if (!force && (await doneToday(key))) return;
+  const startKey = key + 'StartedAt';
+  if (!force) {
+    const o = await chrome.storage.local.get(startKey);
+    if (o[startKey] && Date.now() - o[startKey] < IN_PROGRESS_MS) return;
+  }
+  await chrome.storage.local.set({ [startKey]: Date.now() });
   await chrome.tabs.create({ url: url + (force ? '#fxauto&force' : '#fxauto'), active: false });
 }
 
