@@ -1,16 +1,21 @@
 {
-  "date": "2026-07-07",
+  "date": "2026-07-08",
   "collector": {
-    "ok": false,
-    "at": "2026-07-08T02:06:47.096Z",
-    "error": "All sources failed."
+    "ok": true,
+    "at": "2026-07-08T03:36:37.892Z",
+    "late": true,
+    "counts": {
+      "krungthai": 20,
+      "krungsri": 16,
+      "superrich": 20
+    }
   },
   "push": {
-    "ok": true,
-    "at": "2026-07-07T02:07:00Z",
-    "detail": "published"
+    "ok": false,
+    "at": "2026-07-08T02:06:47Z",
+    "detail": "push failed"
   },
-  "updated": "2026-07-08T02:06:47.096Z",
+  "updated": "2026-07-08T03:36:37.979Z",
   "captures": {
     "kjourney": {
       "ok": true,
@@ -25,6 +30,6 @@
   },
   "validation": {
     "ok": true,
-    "at": "2026-07-07T02:06:56.873Z"
+    "at": "2026-07-08T03:36:37.979Z"
   }
 }
