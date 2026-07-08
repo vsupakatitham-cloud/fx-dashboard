@@ -44,8 +44,21 @@ async function doneToday(key) {
 // SECOND tab capturing in parallel (seen 2026-07-04: every POST duplicated, double
 // traffic tripping Akamai, rounds crawling at +3 ccys). So also skip if a capture
 // for this source STARTED recently and may still be running.
+//
+// The guard must also be ATOMIC: at Chrome startup after a missed 09:00 (Mac
+// asleep), the missed alarm + onStartup + worker-spin-up catch-up all fire within
+// milliseconds, and a plain async read-then-write race let ALL of them pass the
+// check before any wrote StartedAt (seen 2026-07-08 — duplicates despite v1.10.1).
+// MV3 runs a single worker instance, so serializing through an in-memory promise
+// queue makes the check-and-set effectively atomic; the persisted StartedAt still
+// guards across worker restarts.
 const IN_PROGRESS_MS = 45 * 60 * 1000;
-async function openIfNeeded(url, key, force) {
+let openQueue = Promise.resolve();
+function openIfNeeded(url, key, force) {
+  openQueue = openQueue.then(() => openIfNeededSerial(url, key, force)).catch(() => {});
+  return openQueue;
+}
+async function openIfNeededSerial(url, key, force) {
   if (!force && (await doneToday(key))) return;
   const startKey = key + 'StartedAt';
   if (!force) {
@@ -53,7 +66,11 @@ async function openIfNeeded(url, key, force) {
     if (o[startKey] && Date.now() - o[startKey] < IN_PROGRESS_MS) return;
   }
   await chrome.storage.local.set({ [startKey]: Date.now() });
-  await chrome.tabs.create({ url: url + (force ? '#fxauto&force' : '#fxauto'), active: false });
+  const tab = await chrome.tabs.create({ url: url + (force ? '#fxauto&force' : '#fxauto'), active: false });
+  // Capture tabs idle in long ban-cooldowns between rounds, and Chrome's Memory
+  // Saver discards idle background tabs (especially on battery) — which froze the
+  // 2026-07-08 capture mid-run. Exempt capture tabs from discarding.
+  try { await chrome.tabs.update(tab.id, { autoDiscardable: false }); } catch (e) { /* best effort */ }
 }
 
 chrome.alarms.onAlarm.addListener((a) => {
