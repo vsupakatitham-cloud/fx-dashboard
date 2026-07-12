@@ -58,13 +58,18 @@ function openIfNeeded(url, key, force) {
   openQueue = openQueue.then(() => openIfNeededSerial(url, key, force)).catch(() => {});
   return openQueue;
 }
+const FORCE_DEBOUNCE_MS = 90 * 1000;
 async function openIfNeededSerial(url, key, force) {
   if (!force && (await doneToday(key))) return;
   const startKey = key + 'StartedAt';
-  if (!force) {
-    const o = await chrome.storage.local.get(startKey);
-    if (o[startKey] && Date.now() - o[startKey] < IN_PROGRESS_MS) return;
-  }
+  const o = await chrome.storage.local.get(startKey);
+  // Non-force: skip if a capture is (probably) still running. Force: bypasses that,
+  // BUT still debounce a few seconds — a toolbar click can land in the same instant
+  // as a stale missed alarm (seen 2026-07-12: both opened tabs, duplicates again).
+  // A manual re-force still works after 90s.
+  const age = o[startKey] ? Date.now() - o[startKey] : Infinity;
+  if (!force && age < IN_PROGRESS_MS) return;
+  if (force && age < FORCE_DEBOUNCE_MS) return;
   await chrome.storage.local.set({ [startKey]: Date.now() });
   const tab = await chrome.tabs.create({ url: url + (force ? '#fxauto&force' : '#fxauto'), active: false });
   // Capture tabs idle in long ban-cooldowns between rounds, and Chrome's Memory
