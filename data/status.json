@@ -11,15 +11,15 @@
     }
   },
   "push": {
-    "ok": false,
-    "at": "2026-07-12T05:28:32Z",
-    "detail": "push failed"
+    "ok": true,
+    "at": "2026-07-12T05:32:22Z",
+    "detail": "published"
   },
-  "updated": "2026-07-12T05:32:19.362Z",
+  "updated": "2026-07-12T05:32:31.853Z",
   "captures": {
     "kjourney": {
       "ok": true,
-      "at": "2026-07-12T05:27:38.008Z",
+      "at": "2026-07-12T05:32:22.999Z",
       "count": 20
     },
     "mastercard": {
@@ -30,6 +30,6 @@
   },
   "validation": {
     "ok": true,
-    "at": "2026-07-12T05:32:19.362Z"
+    "at": "2026-07-12T05:32:31.853Z"
   }
 }
