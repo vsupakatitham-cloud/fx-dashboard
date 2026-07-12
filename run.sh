@@ -21,8 +21,25 @@ else
   echo "----- run $(date) -----" >> logs/collect.log
 fi
 
-/usr/bin/env node collect.js >> logs/collect.log 2>&1
-echo "exit: $?" >> logs/collect.log
+# Collect with retries: launchd fires missed 09:00 runs on WAKE, including
+# DarkWakes that have no network (seen 2026-07-12: all sources
+# ERR_INTERNET_DISCONNECTED, run burned). Retrying with a pause rides out
+# no-network wakes — if the Mac goes back to sleep mid-sleep, the retry resumes
+# (with network) on the next real wake.
+attempt=1
+while true; do
+  /usr/bin/env node collect.js >> logs/collect.log 2>&1
+  rc=$?
+  echo "exit: $rc" >> logs/collect.log
+  [[ $rc -eq 0 ]] && break
+  if (( attempt >= 3 )); then
+    echo "collect failed after ${attempt} attempts — giving up (hourly catch-up will retry)" >> logs/collect.log
+    break
+  fi
+  attempt=$((attempt+1))
+  echo "collect failed — retrying (attempt ${attempt}) in 180s" >> logs/collect.log
+  sleep 180
+done
 
 # Publish fresh data to GitHub Pages (no-ops if no remote is configured yet)
 /bin/zsh publish.sh >> logs/collect.log 2>&1
