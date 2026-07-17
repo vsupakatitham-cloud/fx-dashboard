@@ -17024,6 +17024,91 @@
             "sell": 0.34
           }
         }
+      },
+      "kjourney": {
+        "ts": "2026-07-17",
+        "rates": {
+          "USD": {
+            "buy": null,
+            "sell": 33.69999
+          },
+          "EUR": {
+            "buy": null,
+            "sell": 38.68084
+          },
+          "GBP": {
+            "buy": null,
+            "sell": 45.66348
+          },
+          "JPY": {
+            "buy": null,
+            "sell": 0.20808
+          },
+          "CNY": {
+            "buy": null,
+            "sell": 4.97897
+          },
+          "HKD": {
+            "buy": null,
+            "sell": 4.30022
+          },
+          "KRW": {
+            "buy": null,
+            "sell": 0.02283
+          },
+          "SGD": {
+            "buy": null,
+            "sell": 26.18081
+          },
+          "AED": {
+            "buy": null,
+            "sell": 9.17705
+          },
+          "AUD": {
+            "buy": null,
+            "sell": 23.65736
+          },
+          "CAD": {
+            "buy": null,
+            "sell": 24.05764
+          },
+          "CHF": {
+            "buy": null,
+            "sell": 41.93087
+          },
+          "DKK": {
+            "buy": null,
+            "sell": 5.17457
+          },
+          "INR": {
+            "buy": null,
+            "sell": 0.35024
+          },
+          "NOK": {
+            "buy": null,
+            "sell": 3.50281
+          },
+          "NZD": {
+            "buy": null,
+            "sell": 19.7549
+          },
+          "QAR": {
+            "buy": null,
+            "sell": 9.24553
+          },
+          "SAR": {
+            "buy": null,
+            "sell": 8.97636
+          },
+          "SEK": {
+            "buy": null,
+            "sell": 3.52148
+          },
+          "TWD": {
+            "buy": null,
+            "sell": 1.04522
+          }
+        }
       }
     }
   }
