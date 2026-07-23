@@ -11,11 +11,11 @@
     }
   },
   "push": {
-    "ok": true,
-    "at": "2026-07-22T02:07:04Z",
-    "detail": "published"
+    "ok": false,
+    "at": "2026-07-23T02:41:06Z",
+    "detail": "push failed"
   },
-  "updated": "2026-07-23T02:29:35.321Z",
+  "updated": "2026-07-23T02:41:09.255Z",
   "captures": {
     "kjourney": {
       "ok": true,
@@ -30,6 +30,6 @@
   },
   "validation": {
     "ok": true,
-    "at": "2026-07-23T02:29:35.321Z"
+    "at": "2026-07-23T02:41:09.254Z"
   }
 }
