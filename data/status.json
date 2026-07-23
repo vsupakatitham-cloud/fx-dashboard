@@ -1,35 +1,14 @@
 {
-  "date": "2026-07-23",
-  "collector": {
-    "ok": true,
-    "at": "2026-07-23T02:29:35.151Z",
-    "late": false,
-    "counts": {
-      "krungthai": 20,
-      "krungsri": 16,
-      "superrich": 20
-    }
-  },
-  "push": {
-    "ok": true,
-    "at": "2026-07-23T05:59:17Z",
-    "detail": "published"
-  },
-  "updated": "2026-07-23T06:10:14.644Z",
   "captures": {
-    "kjourney": {
-      "ok": true,
-      "at": "2026-07-23T05:36:08.612Z",
-      "count": 20
-    },
     "mastercard": {
       "ok": true,
-      "at": "2026-07-23T05:59:17.603Z",
+      "at": "2026-07-23T06:10:18.855Z",
       "count": 20
     }
   },
+  "updated": "2026-07-23T06:21:05.212Z",
   "validation": {
     "ok": true,
-    "at": "2026-07-23T06:10:14.642Z"
+    "at": "2026-07-23T06:21:05.212Z"
   }
 }
