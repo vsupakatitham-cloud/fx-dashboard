@@ -170,6 +170,26 @@ http.createServer((req, res) => {
     res.writeHead(405); return res.end('method not allowed');
   }
 
+  // What has ALREADY been captured today, per source — the extension consults this
+  // before opening a capture tab (skip if complete) and before capturing (only fetch
+  // the missing currencies). Makes the server the source of truth for "done", instead
+  // of per-tab completion flags that let sleep-interrupted days spawn redundant
+  // full-run tabs (seen 2026-08-12/13).
+  if (urlPath === '/progress') {
+    cors(res, origin);
+    if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+    if (req.method !== 'GET') { res.writeHead(405); return res.end('method not allowed'); }
+    try {
+      const s = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'snapshots.json'), 'utf8'));
+      const today = bangkokDate();
+      const d = s.find((x) => x.date === today);
+      const out = { date: today, sources: {} };
+      for (const [k, v] of Object.entries((d && d.sources) || {})) out.sources[k] = Object.keys(v.rates || {});
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(out));
+    } catch (e) { res.writeHead(500); return res.end('{}'); }
+  }
+
   // Tunable capture settings the browser extension reads each run — lets us change the
   // currency list / timing WITHOUT reloading the extension. Served fresh from disk so
   // edits to data/mc-config.json take effect on the next daily run (no server restart).

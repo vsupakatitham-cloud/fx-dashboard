@@ -94,10 +94,25 @@
     } catch (e) { /* worker may be asleep; harmless */ }
   }
 
-  // Resume state across reloads (sessionStorage survives a same-tab reload).
+  // Resume state across reloads (sessionStorage survives a same-tab reload). For a
+  // FRESH tab, ask the local server what today already has and capture only the
+  // missing currencies — so a tab spawned mid-day (sleep-interrupted capture, or a
+  // catch-up after a partial run) never redoes work another tab already merged.
   let remaining;
   try { remaining = JSON.parse(SS.getItem('mcRemaining')); } catch (e) { /* ignore */ }
-  if (!Array.isArray(remaining) || !remaining.length) remaining = CCY.slice();
+  if (!Array.isArray(remaining) || !remaining.length) {
+    let have = [];
+    try {
+      const pr = await fetch('http://localhost:8777/progress', { cache: 'no-store' });
+      if (pr.ok) {
+        const p = await pr.json();
+        if (p.date === today) have = (p.sources || {}).mastercard || [];
+      }
+    } catch (e) { /* server down — capture the full list */ }
+    remaining = CCY.filter((c) => !have.includes(c));
+    if (!remaining.length) { console.log('[mc-capture] server already has all currencies for today'); finish(true, []); return; }
+    if (have.length) console.log(`[mc-capture] server already has ${have.length}; capturing only: ${remaining.join(',')}`);
+  }
   let reloads = parseInt(SS.getItem('mcReloads') || '0', 10) || 0;
 
   console.log(`[mc-capture] session ${reloads + 1}: warm-up ${cfg.warmupMs / 1000}s, then group of ${cfg.groupSize} from [${remaining.join(',')}]`);

@@ -58,9 +58,36 @@ function openIfNeeded(url, key, force) {
   openQueue = openQueue.then(() => openIfNeededSerial(url, key, force)).catch(() => {});
   return openQueue;
 }
+// Server-truth completeness check: a source is done for today when the LOCAL
+// SERVER's merged snapshot has all configured currencies — regardless of which
+// tab(s) captured them. Per-tab "done" flags let sleep-interrupted days spawn
+// redundant full-run tabs all day (2026-08-12: capture smeared 09:03→17:39 with
+// 7 redundant post-completion POSTs). On success we also self-heal the local flag.
+const SOURCE_BY_KEY = { lastRun: 'mastercard', kbankLastRun: 'kjourney' };
+async function sourceCompleteToday(key) {
+  try {
+    const pr = await fetch('http://localhost:8777/progress', { cache: 'no-store' });
+    if (!pr.ok) return false;
+    const p = await pr.json();
+    const have = (p.sources || {})[SOURCE_BY_KEY[key]] || [];
+    let want = 20;
+    const cr = await fetch('http://localhost:8777/mc-config', { cache: 'no-store' });
+    if (cr.ok) {
+      const c = await cr.json();
+      if (Array.isArray(c.currencies) && c.currencies.length) want = c.currencies.length;
+    }
+    if (have.length >= want) {
+      await chrome.storage.local.set({ [key]: p.date });
+      return true;
+    }
+  } catch (e) { /* server down — fall back to local flags */ }
+  return false;
+}
+
 const FORCE_DEBOUNCE_MS = 90 * 1000;
 async function openIfNeededSerial(url, key, force) {
   if (!force && (await doneToday(key))) return;
+  if (!force && (await sourceCompleteToday(key))) return;
   const startKey = key + 'StartedAt';
   const o = await chrome.storage.local.get(startKey);
   // Non-force: skip if a capture is (probably) still running. Force: bypasses that,

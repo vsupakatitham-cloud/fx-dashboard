@@ -11,6 +11,22 @@
   const ENDPOINT = 'http://localhost:8777/src';
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+  // Skip entirely if the server already has today's K-Journey data (another tab
+  // captured it) — keeps duplicate spawns harmless.
+  const todayBkk = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());
+  try {
+    const pr = await fetch('http://localhost:8777/progress', { cache: 'no-store' });
+    if (pr.ok) {
+      const p = await pr.json();
+      const have = (p.sources || {}).kjourney || [];
+      if (p.date === todayBkk && have.length >= 20) {
+        console.log('[kjourney] server already has today — skipping');
+        try { chrome.runtime.sendMessage({ type: 'kbankDone', date: todayBkk, captured: have.length }); } catch (e) {}
+        return;
+      }
+    }
+  } catch (e) { /* server down — proceed with capture */ }
+
   function scrape() {
     const rates = {};
     document.querySelectorAll('table tr').forEach((tr) => {
