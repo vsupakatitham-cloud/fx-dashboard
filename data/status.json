@@ -2,8 +2,8 @@
   "captures": {
     "mastercard": {
       "ok": true,
-      "at": "2026-08-22T02:06:58.539Z",
-      "count": 20
+      "at": "2026-08-23T02:01:11.959Z",
+      "count": 5
     },
     "kjourney": {
       "ok": true,
@@ -11,15 +11,15 @@
       "count": 20
     }
   },
-  "updated": "2026-08-23T02:01:08.197Z",
+  "updated": "2026-08-23T02:03:05.180Z",
   "validation": {
     "ok": true,
-    "at": "2026-08-23T02:01:08.197Z"
+    "at": "2026-08-23T02:03:05.180Z"
   },
   "push": {
-    "ok": false,
-    "at": "2026-08-23T02:00:15Z",
-    "detail": "push failed"
+    "ok": true,
+    "at": "2026-08-23T02:01:11Z",
+    "detail": "published"
   },
   "date": "2026-08-23",
   "collector": {
