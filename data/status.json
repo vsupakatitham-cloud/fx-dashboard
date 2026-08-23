@@ -7,19 +7,19 @@
     },
     "kjourney": {
       "ok": true,
-      "at": "2026-08-22T02:00:15.694Z",
-      "count": 19
+      "at": "2026-08-23T02:00:15.215Z",
+      "count": 20
     }
   },
-  "updated": "2026-08-23T02:00:11.631Z",
+  "updated": "2026-08-23T02:01:08.197Z",
   "validation": {
     "ok": true,
-    "at": "2026-08-23T02:00:11.631Z"
+    "at": "2026-08-23T02:01:08.197Z"
   },
   "push": {
-    "ok": true,
-    "at": "2026-08-22T02:06:58Z",
-    "detail": "published"
+    "ok": false,
+    "at": "2026-08-23T02:00:15Z",
+    "detail": "push failed"
   },
   "date": "2026-08-23",
   "collector": {
