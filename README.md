@@ -10,7 +10,7 @@ trailing-30-day dashboard. Limited to the 20 currencies Krungthai publishes.
 |--------|------|---------------|
 | **krungthai** | Travel Platinum Mastercard card rates | Playwright → `OneRates` widget |
 | **krungsri** | Krungsri Boarding card special rates (16/20 pairs) | Playwright → page table |
-| **superrich** | Superrich Thailand money-changer | Public API + static Basic auth |
+| **superrich** | Superrich Thailand money-changer | Rate page scrape (`/th/exchange-rate` — embedded Next.js payload; old JSON API 404s since 2026-08-28) |
 | **mastercard** | Mastercard network rate (FCY→THB, 0% fee) | ⚠️ **not automated** — see below |
 
 `buy` = provider buys FCY from you (lower); `sell` = provider sells FCY to you (higher).

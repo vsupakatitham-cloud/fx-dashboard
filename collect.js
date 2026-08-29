@@ -29,8 +29,7 @@ const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (
 const KRUNGTHAI_WIDGET =
   'https://krungthai.com/th/widget/OneRates?theme=ktb&output=embed&social=false&logo=false&loan=false&deposit=false&exchange=false&curr=' + KT_CCY.join(',');
 const KRUNGSRI_URL = 'https://www.krungsri.com/th/personal/card/krungsri-boarding-card';
-const SUPERRICH_URL = 'https://www.superrichthailand.com/web/api/v1/rates';
-const SUPERRICH_AUTH = 'Basic c3VwZXJyaWNoVGg6aFRoY2lycmVwdXM='; // static creds the site ships
+const SUPERRICH_URL = 'https://www.superrichthailand.com/th/exchange-rate';
 
 const DATA_DIR = path.join(__dirname, 'data');
 const JSON_PATH = path.join(DATA_DIR, 'snapshots.json');
@@ -100,22 +99,68 @@ async function getKrungsri(page) {
   });
 }
 
-// ---------- Superrich Thailand (HTTP API) ----------
-async function getSuperrich() {
-  const res = await fetch(SUPERRICH_URL, { headers: { Authorization: SUPERRICH_AUTH, Accept: 'application/json', 'User-Agent': UA } });
-  if (!res.ok) throw new Error('superrich HTTP ' + res.status);
-  const json = await res.json();
-  const rates = {};
-  let ts = null;
-  for (const row of (json.data?.exchangeRate || [])) {
-    const code = (row.cUnit || '').trim();
-    const r0 = (row.rate || [])[0];
-    if (!r0) continue;
-    const buy = r0.cBuying ?? r0.cBuy1, sell = r0.cSelling ?? r0.cSell1;
-    if (code && isFinite(buy) && isFinite(sell)) rates[code] = { buy: +buy, sell: +sell };
-    if (!ts && r0.dateTime) ts = r0.dateTime;
+// ---------- Superrich Thailand (public rate page) ----------
+// The old JSON API (/web/api/v1/rates) started 404ing 2026-08-28 after a site
+// revamp. The new Next.js page embeds the rates server-side in its RSC payload as
+// an escaped-JSON `exchangeList` — plain fetch + extraction, still no browser
+// needed. Rows per currency are denominations, best (highest) first; we take the
+// first row, matching the old API's rate[0] behaviour.
+function extractExchangeList(html) {
+  const un = html.replace(/\\"/g, '"');
+  const key = '"exchangeList":';
+  const i = un.indexOf(key);
+  if (i < 0) throw new Error('exchangeList not found in page (layout changed?)');
+  const j = un.indexOf('{', i + key.length);
+  if (j < 0) throw new Error('exchangeList object not found');
+  let depth = 0, k = j;
+  for (; k < un.length; k++) {
+    const ch = un[k];
+    if (ch === '"') { // skip string contents
+      k++;
+      while (k < un.length && un[k] !== '"') { if (un[k] === '\\') k++; k++; }
+      continue;
+    }
+    if (ch === '{') depth++;
+    else if (ch === '}') { depth--; if (depth === 0) { k++; break; } }
   }
-  return { ts, rates };
+  return JSON.parse(un.slice(j, k));
+}
+
+// Pick the representative rate among a currency's denomination rows. Rows are NOT
+// always best-first: collectible denominations can carry big premiums (SGD 1,000
+// note listed at +13% — caught by the validation gate on first use). Normal
+// denomination tiers cluster within ~2%, so anchor on the minimum buy, keep rows
+// within 5% of it, and take the best (highest buy) of those.
+function pickSuperrichRow(rows) {
+  const parsed = rows
+    .map((r) => ({ buy: parseFloat(r.buyText), sell: parseFloat(r.sellText) }))
+    .filter((r) => isFinite(r.buy) && isFinite(r.sell) && r.buy > 0 && r.sell > 0);
+  if (!parsed.length) return null;
+  const min = Math.min(...parsed.map((r) => r.buy));
+  let best = null;
+  for (const r of parsed) {
+    if (r.buy / min - 1 > 0.05) continue; // premium-collectible outlier tier
+    if (!best || r.buy > best.buy) best = r;
+  }
+  return best;
+}
+
+async function getSuperrich() {
+  let res;
+  for (let attempt = 0; attempt < 2; attempt++) { // the page 502s transiently
+    res = await fetch(SUPERRICH_URL, { headers: { Accept: 'text/html', 'User-Agent': UA } });
+    if (res.ok) break;
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+  if (!res.ok) throw new Error('superrich HTTP ' + res.status);
+  const list = extractExchangeList(await res.text());
+  const rates = {};
+  for (const [code, rows] of Object.entries(list)) {
+    if (!Array.isArray(rows) || !rows.length) continue;
+    const r = pickSuperrichRow(rows);
+    if (r) rates[code] = { buy: r.buy, sell: r.sell };
+  }
+  return { ts: new Date().toISOString(), rates };
 }
 
 function filterToKT(rates) {
