@@ -11,14 +11,10 @@
       "count": 19
     }
   },
-  "updated": "2026-08-29T06:36:25.867Z",
+  "updated": "2026-08-29T06:38:23.694Z",
   "validation": {
-    "ok": false,
-    "at": "2026-08-29T06:36:25.867Z",
-    "issues": [
-      "superrich.SGD.buy: 29.1 deviates 13.6% from 7-day median 25.625",
-      "superrich.SGD.sell: 29.3 deviates 13.7% from 7-day median 25.775"
-    ]
+    "ok": true,
+    "at": "2026-08-29T06:38:23.694Z"
   },
   "push": {
     "ok": true,
@@ -35,5 +31,10 @@
       "krungsri": 16,
       "superrich": 0
     }
+  },
+  "cloud_fallback": {
+    "at": "2026-08-29T06:38:23.597Z",
+    "date": "2026-08-29",
+    "count": 20
   }
 }
