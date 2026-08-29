@@ -1,179 +1,154 @@
 # Krungthai Travel Card — FX Rate Monitor (multi-source)
 
 Tracks the Krungthai Travel Platinum Mastercard's exchange rates with a **daily
-09:00 BKT snapshot**, and compares them against other providers on a
-trailing-30-day dashboard. Limited to the 20 currencies Krungthai publishes.
+09:00 BKT snapshot**, compared against four other providers. All history is kept
+forever (nothing is pruned); the dashboard shows a selectable 7–90 day window.
+Limited to the 20 currencies Krungthai publishes.
 
-## Sources
+Live dashboard: https://vsupakatitham-cloud.github.io/fx-dashboard/
+
+## Sources (5)
 
 | Source | What | How it's read |
 |--------|------|---------------|
-| **krungthai** | Travel Platinum Mastercard card rates | Playwright → `OneRates` widget |
+| **krungthai** | Travel Platinum Mastercard card rates | Playwright → `OneRates` widget (Imperva/Incapsula blocks curl) |
 | **krungsri** | Krungsri Boarding card special rates (16/20 pairs) | Playwright → page table |
-| **superrich** | Superrich Thailand money-changer | Rate page scrape (`/th/exchange-rate` — embedded Next.js payload; old JSON API 404s since 2026-08-28) |
-| **mastercard** | Mastercard network rate (FCY→THB, 0% fee) | ⚠️ **not automated** — see below |
+| **superrich** | Superrich Thailand money-changer | Plain fetch of `/th/exchange-rate` — rates embedded in the Next.js payload (`exchangeList`). The old JSON API 404s since 2026-08-28. Denomination rows are outlier-filtered (collectible notes like the SGD 1,000 carry premiums). |
+| **kjourney** | KBank K-Journey debit card (sell-only) | Chrome extension scrapes the KBank rate page in your real browser (Akamai blocks headless) → `POST /src` |
+| **mastercard** | Mastercard network/wholesale rate (THB per 1 FCY, 0% fee) | Chrome extension captures the converter API in your real browser (Akamai blocks headless) → `POST /mc` |
 
-`buy` = provider buys FCY from you (lower); `sell` = provider sells FCY to you (higher).
+`buy` = provider buys FCY from you (lower); `sell` = provider sells FCY to you
+(higher). K-Journey publishes a selling rate only (`buy: null`). Mastercard is a
+single wholesale value (stored `buy == sell`), plotted as a dashed *reference*
+line and excluded from "best rate" — you can't transact at it.
 
 ## Why it's built as a daily collector (important)
 
-These sites only show the **current** rate — there is **no downloadable history**
-of past daily 09:00 snapshots. So a "past 30 days" view **cannot be back-filled**;
-it is *collected forward*. Each daily run adds one point; the chart fills out over
-a month.
+These sites only show the **current** rate — there is **no downloadable
+history**. The series **cannot be back-filled**; it is *collected forward*, one
+point per day. A missed day is permanent (which is why so much of the design
+below is about never missing one).
 
-Krungthai sits behind Imperva/Incapsula and Krungsri behind a CDN, so plain
-`curl` is blocked — the collector drives headless Playwright Chromium for those.
-Superrich exposes a JSON API (static credentials the site itself ships).
+## Architecture
 
-## Mastercard — manual capture (via your own browser)
+```
+09:00 BKT  launchd com.jack.ktbfx  → run.sh → collect.js   (krungthai, krungsri, superrich)
+                                              → validate.js → publish.sh → GitHub Pages
+09:00 BKT  Chrome extension alarm  → mastercard capture → POST /mc  ┐
+                                   → kbank capture      → POST /src ┤→ server.js merges,
+                                                                    ┘  validates, publishes
+Safety nets:
+  com.jack.ktbfx.catchup (launchd, boot + hourly) — runs the collector if today's
+      snapshot is missing past 09:05 (Mac was off at 09:00); snapshot flagged late:true
+  run.sh retries collection 3× (launchd can fire on no-network DarkWakes)
+  GitHub Actions fallback-collect (daily ~09:05 BKT, often hours late) — captures
+      Superrich from the cloud when the Mac is off, so the day isn't empty
+  Extension catch-up — on Chrome start/wake past 09:00, runs any capture the server
+      says is incomplete (GET /progress = server-truth; tabs capture only missing ccys)
+  validate.js — schema + anomaly gate (±10% vs 7-day median); bad data is quarantined
+      and never published (status-only commit goes out instead)
+  data/status.json — every pipeline step records its result; dashboard shows a
+      red/amber health banner; the 09:15 claude.ai routine reads it for the morning push
+```
 
-Mastercard's converter API is behind **Akamai bot protection**: an automated
-(headless) browser gets `403 Access Denied` outright, and even your real browser
-is rate-limited if hit too fast (~5 requests, then a multi-minute lockout). So
-it can't be part of the unattended daily job — but it *can* be captured from your
-own Chrome with gentle pacing.
+### The Akamai lesson (Mastercard + KBank)
 
-Mastercard's number is the **network/wholesale rate** (THB per 1 FCY, 0% bank
-fee) — a single value per currency, no buy/sell spread. The dashboard plots it
-as a dashed *reference* line and excludes it from "best rate" highlighting (you
-can't actually transact at the wholesale rate).
-
-**Daily Mastercard step (~90s):**
-1. That morning, make sure today's snapshot exists: `node collect.js`.
-2. Open the [converter page](https://www.mastercard.com/global/en/personal/get-support/currency-exchange-rate-converter.html).
-3. Open the console (Cmd+Option+J), paste the contents of **`mastercard-capture.js`**, Enter.
-4. Wait for `DONE` (it copies JSON to your clipboard). Paste into `data/mc-input.json`.
-5. Run `node merge-mastercard.js`.
-
-`collect.js` preserves any merged Mastercard block when it re-runs the same day,
-so the order (collect → capture → merge) is safe. If some currencies come back
-`blocked`, just re-run the snippet a few minutes later — merge only updates
-what's present.
-
-## Mastercard — hands-off capture (Chrome extension)
-
-To avoid the daily manual paste, a small Chrome extension (`mc-extension/`) runs
-the capture **inside your real Chrome session** — the only context Akamai lets
-through — and posts the result to a local endpoint that merges + publishes.
-
-**How it works:** a `chrome.alarms` timer fires daily at **09:10 BKT** (just after
-the 09:00 collector), opens the converter page in a background tab, captures the 9
-majors paced 4s apart, and `POST`s them to `http://localhost:8777/mc` (a route on
-`server.js`), which writes `data/mc-input.json`, runs `merge-mastercard.js`, and
-pushes. A once-a-day guard prevents repeats; the toolbar button forces a capture now.
-
-**One-time setup:**
-1. The local endpoint runs as a launchd agent that's always up — install once:
-   `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.jack.ktbfx.server.plist`
-   (copy `com.jack.ktbfx.server.plist` there first). It serves the dashboard at
-   `http://localhost:8777` and exposes `POST /mc`.
-2. In Chrome: `chrome://extensions` → enable **Developer mode** → **Load unpacked**
-   → select the `mc-extension/` folder.
-3. Click the extension's toolbar button once to confirm a capture works (watch
-   `logs/server.log` for a `[/mc] … published to GitHub Pages` line).
-
-**Caveats:** Chrome must be running for the daily alarm to fire (if it's closed at
-09:10, the alarm fires at next launch). The endpoint accepts only same-host POSTs
-from the Mastercard origin (`127.0.0.1`-bound + CORS-restricted). Still majors-only
-to stay under Akamai's limit — a too-aggressive burst triggers a multi-minute ban.
+Both are Akamai-protected: headless automation gets 403 outright; even a real
+browser is limited to ~5 quick requests per session. The Mastercard capture
+therefore runs in **your real Chrome** via the extension, in **fresh-session
+groups**: ≤5 currencies, then `location.reload()` for a new Akamai cookie, then
+the next group (resumable via `sessionStorage`, progress POSTed incrementally,
+capture tabs exempted from Chrome's Memory Saver). KBank shows all currencies in
+one table, so its capture is a single page-load scrape — no rate-limit dance.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `collect.js` | Captures the 3 automated sources, appends one snapshot per BKT day. |
-| `mastercard-capture.js` | Browser-console snippet to capture Mastercard rates. |
-| `merge-mastercard.js` | Merges `data/mc-input.json` into today's snapshot. |
-| `dashboard.html` | The comparison dashboard (open in a browser). |
-| `data/snapshots.json` | Source of truth — accumulating daily snapshots (per-source). |
-| `data/snapshots.csv` | Same data, long format (date,source,currency,buy,sell). |
-| `data/snapshots.js` | Auto-generated shim so the dashboard works via `file://`. |
-| `run.sh` | Wrapper launchd calls (sets browser path, logs). |
-| `com.jack.ktbfx.plist` | macOS launchd schedule for the collector (daily 09:00). |
-| `com.jack.ktbfx.server.plist` | launchd agent that keeps `server.js` (and `POST /mc`) always running. |
-| `server.js` | Static server for the dashboard **+ `POST /mc`** collector endpoint. |
-| `mc-extension/` | Chrome extension: daily hands-off Mastercard capture → `POST /mc`. |
+| `collect.js` | Captures the 3 automated sources; preserves extension-merged sources on same-day reruns; flags late catch-ups. |
+| `collect-cloud.js` | GitHub Actions fallback — Superrich only, when the Mac is off (`.github/workflows/fallback-collect.yml`). |
+| `server.js` | Static dashboard server + capture endpoints: `POST /mc`, `POST /src`, `GET /mc-config`, `GET /progress`. |
+| `merge-mastercard.js` / `merge-source.js` | Upsert a capture into today's snapshot (partial captures accumulate, never wipe). |
+| `validate.js` | Pre-publish gate: schema + ±10%-vs-median anomaly checks; quarantines to `quarantine/` on failure. |
+| `status.js` | Reads/writes `data/status.json` (pipeline health). |
+| `should-catchup.js` | Guard for catch-up runs: true only if today's snapshot is missing past 09:05 BKT. |
+| `run.sh` | launchd wrapper: normal + `--catchup` modes, collection retries, publish. |
+| `publish.sh` | Validation gate → commit data → push (SSH). Status-only publish on quarantine. |
+| `com.jack.ktbfx.plist` | launchd: daily 09:00 collector. |
+| `com.jack.ktbfx.catchup.plist` | launchd: boot + hourly missed-day catch-up. |
+| `com.jack.ktbfx.server.plist` | launchd: keeps `server.js` always running (KeepAlive). |
+| `mc-extension/` | Chrome extension (Mastercard + KBank captures, daily alarm + catch-up + toolbar force). |
+| `data/mc-config.json` | Server-driven capture tuning (currencies, pacing) — edit takes effect next run, **no extension reload**. |
+| `data/snapshots.json` | Source of truth — all daily snapshots, forever. |
+| `data/snapshots.csv` / `.js` | Long-format export / dashboard shim. |
+| `data/status.json` | Machine-readable pipeline health (published). |
+| `dashboard.html` | The dashboard (chart with click-to-focus legend, comparison table, all-currency matrix, health banner). |
+| `mastercard-capture.js` | Legacy manual console snippet (fallback only). |
+| `ROADMAP.md` | Feature roadmap with acceptance criteria. |
 
 ### Snapshot schema
 ```json
-{ "date": "2026-05-30", "captured_at_bkt": "2026-05-30 09:05:00",
+{ "date": "2026-08-29", "captured_at_bkt": "2026-08-29 09:00:05",
+  "late": true,            // only on catch-up captures after 09:30
+  "fallback": true,        // only on cloud-fallback-created entries
   "sources": {
-    "krungthai": { "ts": "...", "rates": { "USD": {"buy":32.54,"sell":32.59} } },
-    "krungsri":  { "ts": null,  "rates": { "USD": {"buy":32.51,"sell":32.60} } },
-    "superrich": { "ts": "...", "rates": { "USD": {"buy":32.40,"sell":32.47} } }
+    "krungthai":  { "ts": "...", "rates": { "USD": {"buy":33.11,"sell":33.16} } },
+    "krungsri":   { "ts": null,  "rates": { "USD": {"buy":33.08,"sell":33.17} } },
+    "superrich":  { "ts": "...", "rates": { "USD": {"buy":33.05,"sell":33.14} } },
+    "kjourney":   { "ts": "...", "rates": { "USD": {"buy":null,"sell":33.22} } },
+    "mastercard": { "ts": "2026-08-28", "reference": true,
+                    "rates": { "USD": {"buy":33.20,"sell":33.20} } }
   } }
 ```
 
-## Publish to the internet (GitHub Pages)
+## Publishing (GitHub Pages)
 
-The dashboard is fully static, so it hosts on GitHub Pages for free. The repo is
-already initialised and committed locally (heavy folders are git-ignored).
+Repo `vsupakatitham-cloud/fx-dashboard`, Pages from `main`/root. `publish.sh`
+pushes over **SSH using a per-repo deploy key** (`~/.ssh/fx-dashboard_ed25519`
+via the `github-fxdash` host alias in `~/.ssh/config`).
 
-**One-time setup:**
-1. Create a new **public** repo at https://github.com/new (e.g. `fx-dashboard`).
-   Leave it empty — no README/.gitignore.
-2. Connect and push (from this folder):
-   ```sh
-   git remote add origin https://github.com/<your-username>/fx-dashboard.git
-   git push -u origin main
-   ```
-   (First push asks for GitHub auth — use a Personal Access Token as the password,
-   or the macOS credential helper / GitHub Desktop.)
-3. In the repo: **Settings → Pages → Build and deployment → Source: Deploy from a
-   branch → Branch: `main` / `/ (root)` → Save.**
-4. Wait ~1 minute. Your dashboard is live at
-   `https://<your-username>.github.io/fx-dashboard/`
+> **Do not switch the push back to HTTPS + keychain.** GitHub Desktop overwrites
+> the shared `github.com` keychain entry with tokens that can't push, which broke
+> the daily publish every morning until the deploy key replaced it. If a push
+> ever 403s, check the deploy key still has write access — don't touch the keychain.
 
-**Keeping it fresh:** after the daily `collect.js` run, `publish.sh` commits the
-new data and pushes — GitHub Pages rebuilds automatically. `run.sh` already calls
-`publish.sh`, so once the remote is set the live site updates every morning. (The
-Mac still needs to be on for the 09:00 capture, but the *site* stays up always.)
+## Daily operation (all automatic)
 
-## Daily use
+Nothing to do on a normal day. The Mac needs to be on (or powered on at some
+point during the day — catch-up handles late starts), Chrome running for the two
+browser captures. A claude.ai routine checks the result at 09:15 BKT and sends a
+push notification.
 
-**Capture today's rate manually:**
+**Manual checks:**
 ```sh
-cd ~/fx-dashboard
-PLAYWRIGHT_BROWSERS_PATH=./.pw-browsers node collect.js
-```
-Re-running on the same day overwrites that day's entry (idempotent).
-
-**View the dashboard** — just open `dashboard.html` in your browser, or:
-```sh
-node server.js     # then visit http://localhost:8777
+tail -f ~/fx-dashboard/logs/collect.log        # collector + publish log
+tail -f ~/fx-dashboard/logs/server.log         # capture endpoint log
+node ~/fx-dashboard/status.js show             # pipeline health
+launchctl list | grep ktbfx                    # agents loaded?
 ```
 
-## Automated 09:00 BKT capture (macOS launchd) — ACTIVE
-
-`com.jack.ktbfx` is installed and runs daily at **09:05 local (= BKT)**. The Mac
-must be powered on around then. Each run captures the 3 automated sources, then
-`publish.sh` pushes the data to GitHub Pages.
-
-> **Must live outside `~/Downloads`/`~/Desktop`/`~/Documents`** — those are macOS
-> TCC-protected and a launchd agent is denied access there ("can't open input
-> file"). Project is at `~/fx-dashboard`.
-
-> **Auto-publish needs git CLI credentials.** GitHub Desktop's login does NOT
-> carry over to the command-line git that launchd uses. Authenticate the CLI once
-> (Terminal): `git push` and enter your username + a Personal Access Token. The
-> `osxkeychain` helper then remembers it and the daily push works unattended.
-
-**Check status / logs:**
+**Force things manually:**
 ```sh
-launchctl list | grep ktbfx                 # last exit code (0 = ok)
-tail -f ~/fx-dashboard/logs/collect.log
+launchctl kickstart "gui/$(id -u)/com.jack.ktbfx"          # run collector now
+launchctl kickstart "gui/$(id -u)/com.jack.ktbfx.catchup"  # catch-up (no-ops if today exists)
+# Extension toolbar button = force both browser captures (debounced 90s)
 ```
 
-**Run once now / stop:**
-```sh
-launchctl kickstart "gui/$(id -u)/com.jack.ktbfx"            # run now
-launchctl bootout  "gui/$(id -u)/com.jack.ktbfx"             # stop
-launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.jack.ktbfx.plist  # start
-```
+> **Project must live outside `~/Downloads`/`~/Desktop`/`~/Documents`** — those
+> are macOS TCC-protected and launchd agents are denied access there.
+
+## Extension versioning
+
+After changing extension *code*, bump `mc-extension/manifest.json` and reload the
+extension at `chrome://extensions`. Capture *tuning* (currency list, pacing)
+lives in `data/mc-config.json` and needs **no reload** — the extension fetches it
+each run.
 
 ## Notes
 - Currencies tracked: USD EUR JPY GBP CNY AED AUD CAD CHF DKK HKD INR KRW NOK NZD QAR SAR SEK SGD TWD.
-- The dashboard shows the selling rate by default; toggle to buying, switch
-  currency, and change the 7/14/30-day window in the UI.
-- These are the **card's** rates (tight spread), not the bank counter rates.
+- A source can miss a currency on a given day if the provider doesn't list it
+  (e.g. KBank occasionally omits one) — that's the provider, not a capture bug.
+- Dashboard: selling rate by default; 7/14/30/60/90-day windows; click legend
+  entries to focus lines (others dim).
+- Known permanent gaps: 2026-06-23 (all sources; Mac off, pre-catch-up),
+  2026-08-28 (superrich only; their API died mid-transition).

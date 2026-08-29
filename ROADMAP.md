@@ -23,7 +23,14 @@ from four axes, in priority order:
 
 ---
 
-## Phase 0 — Trust: make every day's data exist and be right
+## Phase 0 — Trust: make every day's data exist and be right ✅ SHIPPED (July 2026)
+
+*All four items live: 0.1 catch-up (validated on real Mac-off mornings, plus
+run.sh collection retries for no-network DarkWakes), 0.2 cloud fallback (note:
+Actions cron routinely fires hours late — acceptable for a fallback), 0.3
+validation gate (has caught real anomalies in production, e.g. the SGD 1,000-note
+collector premium during the 2026-08 Superrich source migration), 0.4
+status.json + dashboard health banner + status-aware morning routine.*
 
 ### 0.1 Missed-day catch-up (the June-23 problem)
 The launchd job fires at 09:00; if the Mac is asleep it catches up on wake, but if
