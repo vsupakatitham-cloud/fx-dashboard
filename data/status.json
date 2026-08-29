@@ -2,8 +2,8 @@
   "captures": {
     "mastercard": {
       "ok": true,
-      "at": "2026-08-29T02:05:04.927Z",
-      "count": 15
+      "at": "2026-08-29T02:07:01.869Z",
+      "count": 20
     },
     "kjourney": {
       "ok": true,
@@ -11,14 +11,18 @@
       "count": 19
     }
   },
-  "updated": "2026-08-29T02:06:57.984Z",
+  "updated": "2026-08-29T06:36:25.867Z",
   "validation": {
-    "ok": true,
-    "at": "2026-08-29T02:06:57.984Z"
+    "ok": false,
+    "at": "2026-08-29T06:36:25.867Z",
+    "issues": [
+      "superrich.SGD.buy: 29.1 deviates 13.6% from 7-day median 25.625",
+      "superrich.SGD.sell: 29.3 deviates 13.7% from 7-day median 25.775"
+    ]
   },
   "push": {
     "ok": true,
-    "at": "2026-08-29T02:05:04Z",
+    "at": "2026-08-29T02:07:01Z",
     "detail": "published"
   },
   "date": "2026-08-29",
