@@ -127,21 +127,30 @@ function extractExchangeList(html) {
 }
 
 // Pick the representative rate among a currency's denomination rows. Rows are NOT
-// always best-first: collectible denominations can carry big premiums (SGD 1,000
-// note listed at +13% — caught by the validation gate on first use). Normal
-// denomination tiers cluster within ~2%, so anchor on the minimum buy, keep rows
-// within 5% of it, and take the best (highest buy) of those.
+// always best-first, and outlier tiers exist on BOTH sides: collectible premiums
+// above (SGD 1,000 note at +13%) and deep small-note discounts below (CNY 5-1
+// yuan at -7.7% — anchoring on the MINIMUM buy wrongly rejected CNY's real tier
+// for 18 days, 2026-08-29 → 09-15). Normal tiers cluster within ~2% of each
+// other, so anchor on the MEDIAN buy, reject rows >5% from it in either
+// direction, and take the best (highest buy) of the survivors.
 function pickSuperrichRow(rows) {
   const parsed = rows
     .map((r) => ({ buy: parseFloat(r.buyText), sell: parseFloat(r.sellText) }))
     .filter((r) => isFinite(r.buy) && isFinite(r.sell) && r.buy > 0 && r.sell > 0);
   if (!parsed.length) return null;
-  const min = Math.min(...parsed.map((r) => r.buy));
+  const sorted = parsed.map((r) => r.buy).sort((a, b) => a - b);
+  const med = sorted.length % 2
+    ? sorted[(sorted.length - 1) / 2]
+    : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
   let best = null;
   for (const r of parsed) {
-    if (r.buy / min - 1 > 0.05) continue; // premium-collectible outlier tier
+    if (Math.abs(r.buy / med - 1) > 0.05) continue; // outlier tier (either side)
     if (!best || r.buy > best.buy) best = r;
   }
+  // Two rows straddling the median can both fall outside the window; prefer the
+  // lower one — observed outliers ABOVE the cluster are collectible premiums,
+  // while deep-discount tiers have only appeared alongside ≥3 rows.
+  if (!best) best = parsed.reduce((a, b) => (a.buy <= b.buy ? a : b));
   return best;
 }
 

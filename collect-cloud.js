@@ -90,22 +90,27 @@ function writeOutputs(snapshots) {
   const list = JSON.parse(un.slice(j0, k));
   const rates = {};
   const ts = new Date().toISOString();
-  // Rows are denomination tiers and not always best-first: collectible denominations
-  // can carry premiums (SGD 1,000 note at +13%). Anchor on the minimum buy, keep rows
-  // within 5%, take the best of those.
+  // Rows are denomination tiers with outliers on BOTH sides: collectible premiums
+  // above (SGD 1,000 note +13%) and deep small-note discounts below (CNY 5-1 yuan
+  // -7.7%). Anchor on the MEDIAN buy, reject rows >5% from it either way, take the
+  // best survivor; if two straddling rows both fall outside, prefer the lower.
   for (const [code, rows] of Object.entries(list)) {
     if (!KT_SET.has(code) || !Array.isArray(rows) || !rows.length) continue;
     const parsed = rows
       .map((r) => ({ buy: parseFloat(r.buyText), sell: parseFloat(r.sellText) }))
       .filter((r) => isFinite(r.buy) && isFinite(r.sell) && r.buy > 0 && r.sell > 0);
     if (!parsed.length) continue;
-    const min = Math.min(...parsed.map((r) => r.buy));
+    const sorted = parsed.map((r) => r.buy).sort((a, b) => a - b);
+    const med = sorted.length % 2
+      ? sorted[(sorted.length - 1) / 2]
+      : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
     let best = null;
     for (const r of parsed) {
-      if (r.buy / min - 1 > 0.05) continue;
+      if (Math.abs(r.buy / med - 1) > 0.05) continue;
       if (!best || r.buy > best.buy) best = r;
     }
-    if (best) rates[code] = { buy: best.buy, sell: best.sell };
+    if (!best) best = parsed.reduce((a, b) => (a.buy <= b.buy ? a : b));
+    rates[code] = { buy: best.buy, sell: best.sell };
   }
   if (!Object.keys(rates).length) throw new Error('superrich returned no usable rates');
   console.log(`fallback: superrich ${Object.keys(rates).length} pairs (ts ${ts})`);
