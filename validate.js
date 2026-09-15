@@ -78,6 +78,32 @@ for (const [src, blk] of Object.entries(snap.sources || {})) {
   }
 }
 
+// --- 3. cross-source tier guard ---
+// A denomination/feed switch inside ONE source moves a rate several % in a single
+// step and then becomes its own baseline — sliding straight under the self-median
+// gate above (superrich CNY ran -7.8% low for 18 days, 2026-08/09, caught by eye).
+// The superrich/krungthai ratio per currency is stable day-to-day (even where its
+// absolute level is large, e.g. NOK cash at -15%), so a >4% shift vs its own
+// 7-day median flags a tier switch even when both values look individually sane.
+const RATIO_TOL = 0.04;
+for (const side of ['buy', 'sell']) {
+  const srr = snap.sources?.superrich?.rates || {};
+  const ktr = snap.sources?.krungthai?.rates || {};
+  for (const [ccy, r] of Object.entries(srr)) {
+    const a = r?.[side], b = ktr[ccy]?.[side];
+    if (a == null || b == null || !isFinite(a) || !isFinite(b) || a <= 0 || b <= 0) continue;
+    const hist = prior.map((s) => {
+      const x = s.sources?.superrich?.rates?.[ccy]?.[side];
+      const y = s.sources?.krungthai?.rates?.[ccy]?.[side];
+      return (x != null && y != null && isFinite(x) && isFinite(y) && x > 0 && y > 0) ? x / y : null;
+    }).filter((v) => v != null);
+    if (hist.length < MIN_HISTORY) continue;
+    const m = median(hist);
+    const dev = Math.abs((a / b) / m - 1);
+    if (dev > RATIO_TOL) issues.push(`superrich.${ccy}.${side}: ratio vs krungthai shifted ${(dev * 100).toFixed(1)}% from its 7-day norm — denomination/feed switch?`);
+  }
+}
+
 if (!issues.length) {
   if (!DRY) { try { require('./status').merge({ validation: { ok: true, at: new Date().toISOString() } }); } catch (e) { /* best effort */ } }
   console.log(`validate: ${today} OK (${Object.keys(snap.sources).length} sources)`);
