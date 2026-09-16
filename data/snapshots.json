@@ -41377,6 +41377,16 @@
             "sell": 1.04843
           }
         }
+      },
+      "mastercard": {
+        "ts": "2026-09-15",
+        "reference": true,
+        "rates": {
+          "USD": {
+            "buy": 33.38,
+            "sell": 33.38
+          }
+        }
       }
     }
   }
