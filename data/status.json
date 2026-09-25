@@ -11,20 +11,20 @@
       "count": 20
     }
   },
-  "updated": "2026-09-24T02:02:13.864Z",
+  "updated": "2026-09-25T02:00:09.161Z",
   "validation": {
     "ok": true,
-    "at": "2026-09-24T02:02:13.864Z"
+    "at": "2026-09-25T02:00:09.161Z"
   },
   "push": {
     "ok": true,
     "at": "2026-09-24T02:00:17Z",
     "detail": "published"
   },
-  "date": "2026-09-24",
+  "date": "2026-09-25",
   "collector": {
     "ok": true,
-    "at": "2026-09-24T02:00:06.623Z",
+    "at": "2026-09-25T02:00:09.082Z",
     "late": false,
     "counts": {
       "krungthai": 20,
