@@ -2,8 +2,8 @@
   "captures": {
     "mastercard": {
       "ok": true,
-      "at": "2026-09-28T02:05:11.048Z",
-      "count": 15
+      "at": "2026-09-28T02:07:10.072Z",
+      "count": 20
     },
     "kjourney": {
       "ok": true,
@@ -11,20 +11,20 @@
       "count": 20
     }
   },
-  "updated": "2026-09-28T02:07:06.138Z",
+  "updated": "2026-09-29T02:00:14.198Z",
   "validation": {
     "ok": true,
-    "at": "2026-09-28T02:07:06.138Z"
+    "at": "2026-09-29T02:00:14.198Z"
   },
   "push": {
     "ok": true,
-    "at": "2026-09-28T02:05:11Z",
+    "at": "2026-09-28T02:07:10Z",
     "detail": "published"
   },
-  "date": "2026-09-28",
+  "date": "2026-09-29",
   "collector": {
     "ok": true,
-    "at": "2026-09-28T02:00:11.986Z",
+    "at": "2026-09-29T02:00:14.114Z",
     "late": false,
     "counts": {
       "krungthai": 20,
