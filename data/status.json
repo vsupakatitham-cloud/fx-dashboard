@@ -11,21 +11,26 @@
       "count": 20
     }
   },
-  "updated": "2026-10-07T02:04:47.395Z",
+  "updated": "2026-10-07T02:04:50.301Z",
   "validation": {
     "ok": true,
-    "at": "2026-10-06T02:07:16.261Z"
+    "at": "2026-10-07T02:04:50.301Z"
   },
   "push": {
     "ok": true,
     "at": "2026-10-06T02:07:20Z",
     "detail": "published"
   },
-  "date": "2026-10-06",
+  "date": "2026-10-07",
   "collector": {
-    "ok": false,
-    "at": "2026-10-07T02:04:47.395Z",
-    "error": "browserType.launch: Executable doesn't exist at /Users/jack/Library/Caches/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-mac-arm64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝"
+    "ok": true,
+    "at": "2026-10-07T02:04:50.234Z",
+    "late": false,
+    "counts": {
+      "krungthai": 20,
+      "krungsri": 16,
+      "superrich": 20
+    }
   },
   "cloud_fallback": {
     "at": "2026-08-29T06:38:23.597Z",
