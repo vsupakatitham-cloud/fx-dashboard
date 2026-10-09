@@ -6,25 +6,25 @@
       "count": 20
     },
     "kjourney": {
-      "ok": false,
-      "at": "2026-10-07T02:04:51.199Z",
-      "count": 28
+      "ok": true,
+      "at": "2026-10-08T02:00:16.871Z",
+      "count": 20
     }
   },
-  "updated": "2026-10-08T02:00:13.132Z",
+  "updated": "2026-10-09T02:00:13.982Z",
   "validation": {
     "ok": true,
-    "at": "2026-10-08T02:00:13.132Z"
+    "at": "2026-10-09T02:00:13.981Z"
   },
   "push": {
-    "ok": true,
-    "at": "2026-10-07T02:10:46Z",
-    "detail": "published"
+    "ok": false,
+    "at": "2026-10-08T02:00:16Z",
+    "detail": "push failed"
   },
-  "date": "2026-10-08",
+  "date": "2026-10-09",
   "collector": {
     "ok": true,
-    "at": "2026-10-08T02:00:12.670Z",
+    "at": "2026-10-09T02:00:13.901Z",
     "late": false,
     "counts": {
       "krungthai": 20,
