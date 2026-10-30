@@ -11,15 +11,15 @@
       "count": 20
     }
   },
-  "updated": "2026-10-30T02:00:15.002Z",
+  "updated": "2026-10-30T02:00:21.817Z",
   "validation": {
     "ok": true,
-    "at": "2026-10-30T02:00:15.002Z"
+    "at": "2026-10-30T02:00:21.817Z"
   },
   "push": {
-    "ok": false,
-    "at": "2026-10-29T02:00:20Z",
-    "detail": "push failed"
+    "ok": true,
+    "at": "2026-10-30T02:00:19Z",
+    "detail": "published"
   },
   "date": "2026-10-30",
   "collector": {
