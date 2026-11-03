@@ -58,6 +58,23 @@ function todayProgress() {
   return out;
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Backfill work list: "date:CCY" for every configured currency that an existing past
+// snapshot in [from, to] lacks in its Mastercard block.
+function backfillTodo(from, to) {
+  const s = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'snapshots.json'), 'utf8'));
+  const want = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'mc-config.json'), 'utf8')).currencies || [];
+  const today = bangkokDate();
+  const items = [];
+  for (const x of s) {
+    if (x.date < from || x.date > to || x.date >= today) continue;
+    const have = Object.keys(((x.sources || {}).mastercard || {}).rates || {});
+    for (const c of want) if (!have.includes(c)) items.push(`${x.date}:${c}`);
+  }
+  return items;
+}
+
 // Wait for the 09:00 collector to write today's snapshot before merging. Normally
 // the collector finishes in seconds so this returns immediately; the polling only
 // matters if Mastercard fires before a slow collector. After ~3 min with no
@@ -74,6 +91,14 @@ function ensureSnapshot(cb) {
     setTimeout(tick, 10000);
   };
   tick();
+}
+
+// Merge scripts rewrite snapshots.json whole, so two running at once (a backfill post
+// and a late daily capture) could drop one's update. Run them one at a time.
+let mergeChain = Promise.resolve();
+function runMerge(args, cb) {
+  mergeChain = mergeChain.then(() => new Promise((done) =>
+    execFile('node', args, { cwd: ROOT }, (err, out, errOut) => { done(); cb(err, out, errOut); })));
 }
 
 function handleMcPost(req, res) {
@@ -95,11 +120,12 @@ function handleMcPost(req, res) {
     }
     if (!Object.keys(clean).length) { res.writeHead(422); return res.end('no valid rates'); }
     const out = { fxDate: typeof payload.fxDate === 'string' ? payload.fxDate : null, rates: clean };
+    if (payload.snapshotDate !== undefined) return mergeBackfill(res, payload.snapshotDate, out);
     fs.writeFileSync(path.join(ROOT, 'data', 'mc-input.json'), JSON.stringify(out, null, 2));
     // Ensure today's snapshot exists, then merge + publish. Fixed scripts only — no
     // shell-injection surface.
     ensureSnapshot((waitNote) => {
-      execFile('node', ['merge-mastercard.js'], { cwd: ROOT }, (mErr, mOut, mErrOut) => {
+      runMerge(['merge-mastercard.js'], (mErr, mOut, mErrOut) => {
         const mergeLog = (mOut || '') + (mErrOut || '');
         execFile('/bin/zsh', ['publish.sh'], { cwd: ROOT }, (pErr, pOut, pErrOut) => {
           const pubLog = (pOut || '') + (pErrOut || '');
@@ -147,7 +173,7 @@ function handleSrcPost(req, res) {
     const out = { ts: typeof payload.ts === 'string' ? payload.ts : null, rates: clean };
     fs.writeFileSync(path.join(ROOT, 'data', `${source}-input.json`), JSON.stringify(out, null, 2));
     ensureSnapshot((waitNote) => {
-      execFile('node', ['merge-source.js', source], { cwd: ROOT }, (mErr, mOut, mErrOut) => {
+      runMerge(['merge-source.js', source], (mErr, mOut, mErrOut) => {
         const mergeLog = (mOut || '') + (mErrOut || '');
         execFile('/bin/zsh', ['publish.sh'], { cwd: ROOT }, (pErr, pOut, pErrOut) => {
           const pubLog = (pOut || '') + (pErrOut || '');
@@ -189,6 +215,40 @@ function handleCaptureFailed(req, res) {
   });
 }
 
+// Backfill post: merge into an earlier snapshot only. No status record (that tracks
+// today's capture) and no publish per post — /mc-backfill-done publishes once.
+function mergeBackfill(res, date, out) {
+  if (!ISO_DATE.test(date) || date >= bangkokDate()) { res.writeHead(422); return res.end('bad snapshotDate'); }
+  runMerge(['merge-mastercard.js', date, JSON.stringify(out)], (mErr, mOut, mErrOut) => {
+    const mergeLog = ((mOut || '') + (mErrOut || '')).trim();
+    console.log(`[/mc backfill] ${new Date().toISOString()} ${mergeLog}`);
+    res.writeHead(mErr ? 422 : 200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: !mErr, merge: mergeLog }));
+  });
+}
+
+function handleBackfillDone(req, res) {
+  let body = '';
+  req.on('data', (c) => { body += c; if (body.length > 1e5) req.destroy(); });
+  req.on('end', () => {
+    let p;
+    try { p = JSON.parse(body); } catch { res.writeHead(400); return res.end('bad json'); }
+    if (!p || !ISO_DATE.test(p.from) || !ISO_DATE.test(p.to)) { res.writeHead(422); return res.end('need from/to'); }
+    let remaining = null;
+    try { remaining = backfillTodo(p.from, p.to).length; } catch { /* snapshots unreadable */ }
+    const dropped = (Array.isArray(p.dropped) ? p.dropped : []).filter((x) => /^\d{4}-\d{2}-\d{2}:[A-Z]{3}$/.test(x));
+    const error = p.error && remaining !== 0 ? String(p.error).slice(0, 300) : null;
+    try {
+      status.merge({ backfill: { at: new Date().toISOString(), from: p.from, to: p.to, remaining, dropped: dropped.slice(0, 40), error } });
+    } catch (e) { /* best effort */ }
+    console.log(`[/mc-backfill-done] ${p.from}..${p.to}: ${remaining} still missing, ${dropped.length} unavailable${error ? ' — last error: ' + error : ''}`);
+    execFile('/bin/zsh', ['publish.sh'], { cwd: ROOT }, (pErr, pOut, pErrOut) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ remaining, dropped: dropped.length, publish: ((pOut || '') + (pErrOut || '')).trim() }));
+    });
+  });
+}
+
 http.createServer((req, res) => {
   const origin = req.headers.origin || '';
   const urlPath = req.url.split('?')[0];
@@ -208,6 +268,26 @@ http.createServer((req, res) => {
   if (urlPath === '/capture-failed') {
     if (req.method === 'OPTIONS') { cors(res, origin); res.writeHead(204); return res.end(); }
     if (req.method === 'POST') { cors(res, origin); return handleCaptureFailed(req, res); }
+    res.writeHead(405); return res.end('method not allowed');
+  }
+
+  if (urlPath === '/mc-backfill') {
+    cors(res, origin);
+    if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+    if (req.method !== 'GET') { res.writeHead(405); return res.end('method not allowed'); }
+    const q = new URL(req.url, 'http://localhost').searchParams;
+    const from = q.get('from') || '', to = q.get('to') || '';
+    if (!ISO_DATE.test(from) || !ISO_DATE.test(to)) { res.writeHead(422); return res.end('need from/to as YYYY-MM-DD'); }
+    try {
+      const items = backfillTodo(from, to);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ items }));
+    } catch (e) { res.writeHead(500); return res.end('{}'); }
+  }
+
+  if (urlPath === '/mc-backfill-done') {
+    if (req.method === 'OPTIONS') { cors(res, origin); res.writeHead(204); return res.end(); }
+    if (req.method === 'POST') { cors(res, origin); return handleBackfillDone(req, res); }
     res.writeHead(405); return res.end('method not allowed');
   }
 

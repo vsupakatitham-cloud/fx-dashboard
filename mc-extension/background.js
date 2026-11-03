@@ -135,15 +135,20 @@ chrome.action.onClicked.addListener(() => {
 
 // Content scripts reach the local collector through us (see collector.js for why), and
 // ask us to close their tab when finished (and record the day's run).
-const COLLECTOR_PATHS = ['/progress', '/mc-config', '/mc', '/src', '/capture-failed'];
+const COLLECTOR_PATHS = ['/progress', '/mc-config', '/mc', '/src', '/capture-failed', '/mc-backfill', '/mc-backfill-done'];
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg && msg.type === 'collector' && COLLECTOR_PATHS.includes(msg.path)) {
+  if (msg && msg.type === 'collector' && COLLECTOR_PATHS.includes(String(msg.path).split('?')[0])) {
     const init = msg.body === undefined ? { cache: 'no-store' }
       : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(msg.body) };
     fetch('http://localhost:8777' + msg.path, init)
       .then(async (r) => sendResponse({ status: r.status, text: await r.text() }))
       .catch((e) => sendResponse({ status: 0, text: String(e) }));
     return true;
+  }
+  // A hand-opened backfill tab runs for hours; keep Memory Saver from discarding it.
+  if (msg && msg.type === 'noDiscard' && sender.tab) {
+    chrome.tabs.update(sender.tab.id, { autoDiscardable: false }).catch(() => {});
+    return;
   }
   if (msg && (msg.type === 'mcDone' || msg.type === 'kbankDone')) {
     const key = msg.type === 'mcDone' ? 'lastRun' : 'kbankLastRun';

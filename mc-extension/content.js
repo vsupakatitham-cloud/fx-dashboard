@@ -16,9 +16,13 @@
  * explicit exchange_date and answers a JSON 4xx for days not yet published. Every
  * earlier capture got fxDate = snapshot date - 1 (the newest rate out at 09:00 BKT), so
  * we ask for that day and step back only if Mastercard says it isn't published.
+ *
+ * BACKFILL (v1.13.0): opening the page by hand with '#fxbackfill=FROM..TO' instead fills
+ * Mastercard into the existing past snapshots in that range — see backfill() below.
  */
 (async () => {
-  if (!location.hash.includes('fxauto')) return;
+  const BACKFILL = /fxbackfill=(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})/.exec(location.hash);
+  if (!BACKFILL && !location.hash.includes('fxauto')) return;
 
   const RATE_PATH = '/marketingservices/public/mccom-services/currency-conversions/conversion-rates';
   const MAX_DAYS_BACK = 4;
@@ -112,6 +116,87 @@
       });
     } catch (e) { /* worker may be asleep; harmless */ }
   }
+
+  // Each past snapshot gets the rate dated the day before, as its 09:00 capture would
+  // have. The server supplies the work list (date:CCY items still missing), so a rerun
+  // resumes an interrupted backfill. Merges don't publish; /mc-backfill-done publishes
+  // once at the end instead of ~100 commits.
+  async function backfill(from, to) {
+    if (SS.getItem('mcbFinished') === '1') return;
+    try { chrome.runtime.sendMessage({ type: 'noDiscard' }); } catch (e) { /* best effort */ }
+    let items = JSON.parse(SS.getItem('mcbItems') || 'null');
+    if (!Array.isArray(items)) {
+      const r = await collector(`/mc-backfill?from=${from}&to=${to}`);
+      items = r.status === 200 ? JSON.parse(r.text).items : [];
+      console.log(`[mc-backfill] ${from}..${to}: ${items.length} rates to fill`);
+    }
+    const dropped = JSON.parse(SS.getItem('mcbDropped') || '[]');
+
+    // Today's capture goes first: from 08:45 BKT wait until it's complete, so the two never
+    // share Akamai's budget or write snapshots.json at the same moment.
+    for (;;) {
+      const [h, m] = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+        .format(new Date()).split(':').map(Number);
+      if (h * 60 + m < 8 * 60 + 45) break;
+      const p = await collector('/progress');
+      const have = p.status === 200 ? ((JSON.parse(p.text).sources || {}).mastercard || []).length : 0;
+      if (have >= CCY.length) break;
+      document.title = "FX backfill: waiting for today's capture";
+      await sleep(cfg.groupPauseMs);
+    }
+    document.title = `FX backfill: ${items.length} left`;
+    await sleep(cfg.warmupMs);
+
+    const byDate = {};
+    const retry = [];
+    let banned = false;
+    let progressed = false;
+    for (const it of items.slice(0, cfg.groupSize)) {
+      if (banned) { retry.push(it); continue; }
+      const [snap, c] = it.split(':');
+      const date = daysBefore(snap, 1);
+      let res;
+      try { res = await fetchRate(c, date); } catch (e) { res = { error: `${c}@${date}: ${e.message}` }; }
+      if (res.rate != null && String(res.fxDate).slice(0, 10) === date) {
+        (byDate[snap] = byDate[snap] || {})[c] = res.rate;
+        progressed = true;
+      } else if (res.rate != null || res.apiError) {
+        // Mastercard answered, but not with that day's rate; asking again won't change it.
+        dropped.push(it);
+        lastError = res.rate != null ? `${c}@${date}: got fxDate ${res.fxDate}` : res.error;
+        progressed = true;
+      } else {
+        retry.push(it);
+        lastError = res.error;
+        if (res.status === 403 || res.status === 429) banned = true;
+      }
+      SS.setItem('mcLastError', lastError || '');
+      await sleep(cfg.spacingMs);
+    }
+    for (const [snap, rates] of Object.entries(byDate)) {
+      const r = await collector('/mc', { snapshotDate: snap, fxDate: daysBefore(snap, 1), rates });
+      console.log(`[mc-backfill] ${snap}: posted ${Object.keys(rates).length} -> ${r.status} ${r.text}`);
+    }
+
+    items = retry.concat(items.slice(cfg.groupSize));
+    const idle = progressed ? 0 : (+SS.getItem('mcbIdle') || 0) + 1;
+    if (items.length && idle < 3) {
+      SS.setItem('mcbItems', JSON.stringify(items));
+      SS.setItem('mcbDropped', JSON.stringify(dropped));
+      SS.setItem('mcbIdle', String(idle));
+      console.log(`[mc-backfill] ${items.length} left${banned ? ' — banned' : ''}`);
+      await sleep(banned ? cfg.cooldownMs : cfg.groupPauseMs);
+      location.reload();
+      return;
+    }
+    SS.setItem('mcbFinished', '1');
+    const r = await collector('/mc-backfill-done', { from, to, dropped, error: lastError });
+    let left = '?';
+    try { left = JSON.parse(r.text).remaining; } catch (e) { /* collector unreachable */ }
+    document.title = `FX backfill: done, ${left} still missing`;
+    console.log(`[mc-backfill] finished: ${r.status} ${r.text}`);
+  }
+  if (BACKFILL) return backfill(BACKFILL[1], BACKFILL[2]);
 
   // Resume state across reloads (sessionStorage survives a same-tab reload). For a
   // FRESH tab, ask the local server what today already has and capture only the

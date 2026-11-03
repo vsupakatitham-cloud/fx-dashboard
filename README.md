@@ -67,7 +67,7 @@ one table, so its capture is a single page-load scrape — no rate-limit dance.
 |------|---------|
 | `collect.js` | Captures the 3 automated sources; preserves extension-merged sources on same-day reruns; flags late catch-ups. |
 | `collect-cloud.js` | GitHub Actions fallback — Superrich only, when the Mac is off (`.github/workflows/fallback-collect.yml`). |
-| `server.js` | Static dashboard server + capture endpoints: `POST /mc`, `POST /src`, `POST /capture-failed` (a capture that ends incomplete records `ok:false` + its last error in `status.json`), `GET /mc-config`, `GET /progress`. |
+| `server.js` | Static dashboard server + capture endpoints: `POST /mc`, `POST /src`, `POST /capture-failed` (a capture that ends incomplete records `ok:false` + its last error in `status.json`), `GET /mc-config`, `GET /progress`; backfill: `GET /mc-backfill` (work list), `POST /mc` with `snapshotDate` (merge into a past snapshot, no publish), `POST /mc-backfill-done` (records `status.backfill`, publishes once). |
 | `merge-mastercard.js` / `merge-source.js` | Upsert a capture into today's snapshot (partial captures accumulate, never wipe). |
 | `validate.js` | Pre-publish gate: schema + ±10%-vs-median anomaly checks; quarantines to `quarantine/` on failure. |
 | `status.js` | Reads/writes `data/status.json` (pipeline health). |
@@ -132,6 +132,9 @@ launchctl list | grep ktbfx                    # agents loaded?
 launchctl kickstart "gui/$(id -u)/com.jack.ktbfx"          # run collector now
 launchctl kickstart "gui/$(id -u)/com.jack.ktbfx.catchup"  # catch-up (no-ops if today exists)
 # Extension toolbar button = force both browser captures (debounced 90s)
+# Backfill Mastercard into past snapshots (resumable; ~2 min per 5 rates; the tab title
+# shows progress; pauses from 08:45 BKT until that day's capture is complete):
+open -a "Google Chrome" "https://www.mastercard.com/global/en/personal/get-support/currency-exchange-rate-converter.html#fxbackfill=2026-10-08..2026-11-02"
 ```
 
 > **Project must live outside `~/Downloads`/`~/Desktop`/`~/Documents`** — those
@@ -158,4 +161,5 @@ each run.
   explicit `exchange_date` = snapshot date − 1, and (b) routes content-script calls to
   `localhost:8777` through the service worker (`mc-extension/collector.js`) — Chrome's
   Local Network Access gate blocks a site's own requests to localhost unless that site
-  holds the permission. The gap is backfillable: Mastercard serves past dates (ROADMAP 2.2).
+  holds the permission. Mastercard serves past dates, so `#fxbackfill` (above) fills
+  such gaps: each snapshot gets the rate dated the day before, as its capture would have.

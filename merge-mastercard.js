@@ -7,9 +7,11 @@
  * it slots into the same schema, and the dashboard treats it as a reference line.
  *
  * Input: data/mc-input.json  ->  { "fxDate": "2026-05-29", "rates": { "USD": 32.78, ... } }
- * Optionally pass a target date as argv[2] (defaults to today, Asia/Bangkok).
+ * Optionally pass a target date as argv[2] (defaults to today, Asia/Bangkok), and the
+ * input JSON itself as argv[3] — the server's backfill does, so a backfill merge never
+ * reads input that a concurrent daily capture just wrote to the shared file.
  *
- * Usage:  node merge-mastercard.js [YYYY-MM-DD]
+ * Usage:  node merge-mastercard.js [YYYY-MM-DD] [input-json]
  */
 const fs = require('fs');
 const path = require('path');
@@ -41,7 +43,7 @@ function writeOutputs(snapshots) {
 }
 
 const date = process.argv[2] || bangkokDate();
-const input = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'mc-input.json'), 'utf8'));
+const input = JSON.parse(process.argv[3] || fs.readFileSync(path.join(DATA_DIR, 'mc-input.json'), 'utf8'));
 const snapshots = JSON.parse(fs.readFileSync(JSON_PATH, 'utf8'));
 const snap = snapshots.find((s) => s.date === date);
 if (!snap) { console.error(`No snapshot for ${date}. Run collect.js first.`); process.exit(1); }
