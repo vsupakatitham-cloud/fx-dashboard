@@ -259,6 +259,21 @@ if (snaps.length) { buildControls(); renderAll(); }
     if (st.date && st.date < todayBkk && minsBkk >= 9 * 60 + 20) issues.push(['red', `No collection for ${todayBkk} yet — last successful day: ${st.date}.`]);
     if (st.collector && st.collector.ok && st.collector.counts && Object.values(st.collector.counts).some(c => !c)) issues.push(['amber', 'A collector source returned no data on the last run.']);
     if (st.collector && st.collector.late) issues.push(['amber', "Today's snapshot is a late catch-up capture (Mac was off at 09:00)."]);
+    // Browser captures write status only when a tab reports back, so judge them by today's
+    // snapshot: a capture source still absent at 10:00 BKT is broken or never ran.
+    const todaySnap = snaps.find(s => s.date === todayBkk);
+    const bkkDay = iso => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date(iso));
+    if (todaySnap) for (const [src, c] of Object.entries(st.captures || {})) {
+      const label = SRC_META[src] ? SRC_META[src].label : src;
+      const n = Object.keys((todaySnap.sources[src] || {}).rates || {}).length;
+      const err = c.ok === false && c.error ? ` Last error: ${c.error}` : '';
+      if (!n && minsBkk >= 10 * 60) {
+        const last = snaps.filter(s => s.sources[src]).pop();
+        issues.push(['amber', `${label} not captured today (last captured ${last ? last.date : 'never'}).${err}`]);
+      } else if (n && c.ok === false && c.at && bkkDay(c.at) === todayBkk) {
+        issues.push(['amber', `${label} capture incomplete today (${n}/${Object.keys(FLAGS).length}).${err}`]);
+      }
+    }
     if (!issues.length) return;
     const el = document.getElementById('health');
     el.className = 'banner health-' + (issues.some(i => i[0] === 'red') ? 'red' : 'amber');

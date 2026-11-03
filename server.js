@@ -48,6 +48,16 @@ function hasTodaySnapshot() {
   } catch { return false; }
 }
 
+// Currencies today's (BKT) snapshot already has, per source.
+function todayProgress() {
+  const s = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'snapshots.json'), 'utf8'));
+  const today = bangkokDate();
+  const d = s.find((x) => x.date === today);
+  const out = { date: today, sources: {} };
+  for (const [k, v] of Object.entries((d && d.sources) || {})) out.sources[k] = Object.keys(v.rates || {});
+  return out;
+}
+
 // Wait for the 09:00 collector to write today's snapshot before merging. Normally
 // the collector finishes in seconds so this returns immediately; the polling only
 // matters if Mastercard fires before a slow collector. After ~3 min with no
@@ -154,6 +164,31 @@ function handleSrcPost(req, res) {
   });
 }
 
+// A capture tab that ends short reports why. Captures otherwise only write status.json
+// on success, so a source that stops working keeps showing its last good run.
+const CAPTURE_SOURCES = ['mastercard', ...ALLOWED_SOURCES];
+function handleCaptureFailed(req, res) {
+  let body = '';
+  req.on('data', (c) => { body += c; if (body.length > 1e4) req.destroy(); });
+  req.on('end', () => {
+    let p;
+    try { p = JSON.parse(body); } catch { res.writeHead(400); return res.end('bad json'); }
+    if (!p || !CAPTURE_SOURCES.includes(p.source)) { res.writeHead(422); return res.end('unknown source'); }
+    const missing = (Array.isArray(p.missing) ? p.missing : []).filter((c) => /^[A-Z]{3}$/.test(c)).slice(0, 20);
+    const error = String(p.error || 'capture incomplete').slice(0, 300);
+    let count = 0;
+    try { count = (todayProgress().sources[p.source] || []).length; } catch { /* no snapshot yet */ }
+    try {
+      status.merge({ captures: { [p.source]: { ok: false, at: new Date().toISOString(), count, missing, error } } });
+    } catch (e) { /* best effort */ }
+    console.log(`[/capture-failed ${p.source}] ${new Date().toISOString()} have ${count}, missing ${missing.join(',') || '-'}: ${error}`);
+    execFile('/bin/zsh', ['publish.sh'], { cwd: ROOT }, (pErr, pOut, pErrOut) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, count, publish: ((pOut || '') + (pErrOut || '')).trim() }));
+    });
+  });
+}
+
 http.createServer((req, res) => {
   const origin = req.headers.origin || '';
   const urlPath = req.url.split('?')[0];
@@ -170,6 +205,12 @@ http.createServer((req, res) => {
     res.writeHead(405); return res.end('method not allowed');
   }
 
+  if (urlPath === '/capture-failed') {
+    if (req.method === 'OPTIONS') { cors(res, origin); res.writeHead(204); return res.end(); }
+    if (req.method === 'POST') { cors(res, origin); return handleCaptureFailed(req, res); }
+    res.writeHead(405); return res.end('method not allowed');
+  }
+
   // What has ALREADY been captured today, per source — the extension consults this
   // before opening a capture tab (skip if complete) and before capturing (only fetch
   // the missing currencies). Makes the server the source of truth for "done", instead
@@ -180,11 +221,7 @@ http.createServer((req, res) => {
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
     if (req.method !== 'GET') { res.writeHead(405); return res.end('method not allowed'); }
     try {
-      const s = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'snapshots.json'), 'utf8'));
-      const today = bangkokDate();
-      const d = s.find((x) => x.date === today);
-      const out = { date: today, sources: {} };
-      for (const [k, v] of Object.entries((d && d.sources) || {})) out.sources[k] = Object.keys(v.rates || {});
+      const out = todayProgress();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(out));
     } catch (e) { res.writeHead(500); return res.end('{}'); }

@@ -19,13 +19,17 @@
  * ========================================================================== */
 (async () => {
   const CCY = ['USD','EUR','JPY','GBP','CNY','AED','AUD','CAD','CHF','DKK','HKD','INR','KRW','NOK','NZD','QAR','SAR','SEK','SGD','TWD'];
+  // The endpoint needs an explicit date; the newest rate out at 09:00 BKT is yesterday's (BKT).
+  const d = new Date(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date()) + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() - 1);
+  const date = d.toISOString().slice(0, 10);
   const rates = {}; let fxDate = null; const blocked = [];
   for (const c of CCY) {
     try {
-      const r = await fetch(`/settlement/currencyrate/conversion-rate?fxDate=0000-00-00&transCurr=${c}&crdhldBillCurr=THB&bankFee=0&transAmt=1`, { headers: { Accept: 'application/json' } });
+      const r = await fetch(`/marketingservices/public/mccom-services/currency-conversions/conversion-rates?exchange_date=${date}&transaction_currency=${c}&cardholder_billing_currency=THB&bank_fee=0&transaction_amount=1`, { headers: { Accept: 'application/json' } });
       if (r.status === 200) {
         const j = await r.json();
-        if (j?.data?.conversionRate) { rates[c] = +(+j.data.conversionRate).toFixed(6); fxDate = j.data.fxDate || fxDate; }
+        if (j?.data?.conversionRate) { rates[c] = +(+j.data.conversionRate).toFixed(6); fxDate = j.data.fxDate || date; }
       } else { blocked.push(c); }
     } catch (e) { blocked.push(c); }
     console.log(`${c}: ${rates[c] ?? 'blocked'}  (${Object.keys(rates).length}/${CCY.length})`);

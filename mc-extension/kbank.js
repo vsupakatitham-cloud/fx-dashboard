@@ -8,16 +8,15 @@
  */
 (async () => {
   if (!location.hash.includes('fxauto')) return;
-  const ENDPOINT = 'http://localhost:8777/src';
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // Skip entirely if the server already has today's K-Journey data (another tab
   // captured it) — keeps duplicate spawns harmless.
   const todayBkk = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());
   try {
-    const pr = await fetch('http://localhost:8777/progress', { cache: 'no-store' });
-    if (pr.ok) {
-      const p = await pr.json();
+    const pr = await collector('/progress');
+    if (pr.status === 200) {
+      const p = JSON.parse(pr.text);
       const have = (p.sources || {}).kjourney || [];
       if (p.date === todayBkk && have.length >= 20) {
         console.log('[kjourney] server already has today — skipping');
@@ -51,15 +50,9 @@
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());
   const n = Object.keys(rates).length;
   if (n) {
-    try {
-      const r = await fetch(ENDPOINT, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: 'kjourney', ts: today, rates }),
-      });
-      console.log(`[kjourney] posted ${n} rates -> ${r.status} ${await r.text()}`);
-    } catch (e) {
-      console.warn('[kjourney] POST to collector failed (is server.js running?):', e);
-    }
+    const r = await collector('/src', { source: 'kjourney', ts: today, rates });
+    if (r.status) console.log(`[kjourney] posted ${n} rates -> ${r.status} ${r.text}`);
+    else console.warn('[kjourney] POST to collector failed (is server.js running?):', r.text);
   } else {
     console.warn('[kjourney] no rates scraped (Akamai challenge or page layout changed).');
   }

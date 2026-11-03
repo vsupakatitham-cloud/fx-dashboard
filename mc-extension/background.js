@@ -133,8 +133,18 @@ chrome.action.onClicked.addListener(() => {
   openIfNeeded(KBANK_URL, 'kbankLastRun', true);
 });
 
-// Content scripts ask us to close their tab when finished (and record the day's run).
+// Content scripts reach the local collector through us (see collector.js for why), and
+// ask us to close their tab when finished (and record the day's run).
+const COLLECTOR_PATHS = ['/progress', '/mc-config', '/mc', '/src', '/capture-failed'];
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg && msg.type === 'collector' && COLLECTOR_PATHS.includes(msg.path)) {
+    const init = msg.body === undefined ? { cache: 'no-store' }
+      : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(msg.body) };
+    fetch('http://localhost:8777' + msg.path, init)
+      .then(async (r) => sendResponse({ status: r.status, text: await r.text() }))
+      .catch((e) => sendResponse({ status: 0, text: String(e) }));
+    return true;
+  }
   if (msg && (msg.type === 'mcDone' || msg.type === 'kbankDone')) {
     const key = msg.type === 'mcDone' ? 'lastRun' : 'kbankLastRun';
     if (msg.date) chrome.storage.local.set({ [key]: msg.date, [key + 'Result']: msg });

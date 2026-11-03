@@ -67,7 +67,7 @@ one table, so its capture is a single page-load scrape — no rate-limit dance.
 |------|---------|
 | `collect.js` | Captures the 3 automated sources; preserves extension-merged sources on same-day reruns; flags late catch-ups. |
 | `collect-cloud.js` | GitHub Actions fallback — Superrich only, when the Mac is off (`.github/workflows/fallback-collect.yml`). |
-| `server.js` | Static dashboard server + capture endpoints: `POST /mc`, `POST /src`, `GET /mc-config`, `GET /progress`. |
+| `server.js` | Static dashboard server + capture endpoints: `POST /mc`, `POST /src`, `POST /capture-failed` (a capture that ends incomplete records `ok:false` + its last error in `status.json`), `GET /mc-config`, `GET /progress`. |
 | `merge-mastercard.js` / `merge-source.js` | Upsert a capture into today's snapshot (partial captures accumulate, never wipe). |
 | `validate.js` | Pre-publish gate: schema + ±10%-vs-median anomaly checks; quarantines to `quarantine/` on failure. |
 | `status.js` | Reads/writes `data/status.json` (pipeline health). |
@@ -152,3 +152,10 @@ each run.
   entries to focus lines (others dim).
 - Known permanent gaps: 2026-06-23 (all sources; Mac off, pre-catch-up),
   2026-08-28 (superrich only; their API died mid-transition).
+- Mastercard is missing from 2026-10-08 (no capture reached the collector after 10-07)
+  until extension v1.12.0, which (a) calls the converter page's current endpoint
+  `/marketingservices/public/mccom-services/currency-conversions/conversion-rates` with an
+  explicit `exchange_date` = snapshot date − 1, and (b) routes content-script calls to
+  `localhost:8777` through the service worker (`mc-extension/collector.js`) — Chrome's
+  Local Network Access gate blocks a site's own requests to localhost unless that site
+  holds the permission. The gap is backfillable: Mastercard serves past dates (ROADMAP 2.2).
